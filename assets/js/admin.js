@@ -7,6 +7,13 @@ jQuery(document).ready(function($) {
 
     let progressPollInterval = null;
 
+    // HTMLエスケープ関数（XSS対策）
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // 通知表示用のヘルパー関数
     function showNotice(message, type = 'success') {
         // 既存の通知を削除
@@ -15,9 +22,12 @@ jQuery(document).ready(function($) {
         // 通知タイプのクラス名を決定
         const noticeClass = type === 'error' ? 'notice-error' : 'notice-success';
 
+        // メッセージをエスケープしてXSS対策
+        const safeMessage = escapeHtml(message);
+
         // 通知HTMLを作成
         const $notice = $('<div class="notice sge-notice ' + noticeClass + ' is-dismissible">' +
-            '<p>' + message + '</p>' +
+            '<p>' + safeMessage + '</p>' +
             '<button type="button" class="notice-dismiss">' +
             '<span class="screen-reader-text">この通知を無視</span>' +
             '</button>' +
@@ -124,6 +134,26 @@ jQuery(document).ready(function($) {
         updateExecuteButton();
     });
 
+    // Cloudflare出力チェックボックスの連動
+    $('#sge-cloudflare-enabled').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#sge-cloudflare-settings').slideDown();
+        } else {
+            $('#sge-cloudflare-settings').slideUp();
+        }
+        updateExecuteButton();
+    });
+
+    // GitLab出力チェックボックスの連動
+    $('#sge-gitlab-enabled').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#sge-gitlab-settings').slideDown();
+        } else {
+            $('#sge-gitlab-settings').slideUp();
+        }
+        updateExecuteButton();
+    });
+
     // ブランチモードのラジオボタン連動（GitHub）
     const $branchModeRadio = $('input[name="github_branch_mode"]');
     if ($branchModeRadio.length > 0) {
@@ -139,11 +169,27 @@ jQuery(document).ready(function($) {
         });
     }
 
+    // ブランチモードのラジオボタン連動（GitLab）
+    const $gitlabBranchModeRadio = $('input[name="gitlab_branch_mode"]');
+    if ($gitlabBranchModeRadio.length > 0) {
+        $gitlabBranchModeRadio.on('change', function() {
+            const mode = $(this).val();
+            if (mode === 'existing') {
+                $('#sge-gitlab-existing-branch').prop('disabled', false);
+                $('#sge-gitlab-new-branch, #sge-gitlab-base-branch').prop('disabled', true);
+            } else {
+                $('#sge-gitlab-existing-branch').prop('disabled', true);
+                $('#sge-gitlab-new-branch, #sge-gitlab-base-branch').prop('disabled', false);
+            }
+        });
+    }
+
     // 実行ボタンの有効/無効を更新
     function updateExecuteButton() {
         const $githubCheckbox = $('#sge-github-enabled');
         const $gitLocalCheckbox = $('#sge-git-local-enabled');
         const $localCheckbox = $('#sge-local-enabled');
+        const $gitlabCheckbox = $('#sge-gitlab-enabled');
         const $executeButton = $('#sge-execute-button');
         const $commitSection = $('.sge-commit-section');
         const $commitMessage = $('#sge-commit-message');
@@ -166,11 +212,12 @@ jQuery(document).ready(function($) {
         const githubEnabled = $githubCheckbox.is(':checked');
         const gitLocalEnabled = $gitLocalCheckbox.is(':checked');
         const localEnabled = $localCheckbox.is(':checked');
+        const gitlabEnabled = $gitlabCheckbox.is(':checked');
 
         // 出力先が選択されていなくても静的化は実行可能（デフォルトで有効）
 
-        // GitHub出力またはローカルGit出力が有効な場合はコミットメッセージセクションを表示
-        if (githubEnabled || gitLocalEnabled) {
+        // GitHub出力またはローカルGit出力またはGitLab出力が有効な場合はコミットメッセージセクションを表示
+        if (githubEnabled || gitLocalEnabled || gitlabEnabled) {
             $commitSection.addClass('active');
             $executeButton.addClass('commit-required');
 

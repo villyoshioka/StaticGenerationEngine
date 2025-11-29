@@ -70,6 +70,15 @@ class SGE_Settings {
     }
 
     /**
+     * 暗号化キーがwp-config.phpで定義されているかチェック
+     *
+     * @return bool wp-config.phpで定義されていればtrue
+     */
+    public function is_encryption_key_in_config() {
+        return defined( 'SGE_ENCRYPTION_KEY' ) && ! empty( SGE_ENCRYPTION_KEY );
+    }
+
+    /**
      * 設定を取得
      *
      * @return array 設定の配列
@@ -82,6 +91,7 @@ class SGE_Settings {
             'version' => SGE_VERSION,
             'github_enabled' => false,
             'local_enabled' => false,
+            'zip_enabled' => true, // Ver1.2: デフォルト有効
             'github_token' => '',
             'github_repo' => '',
             'github_branch_mode' => 'existing',
@@ -97,7 +107,6 @@ class SGE_Settings {
             'timeout' => 600,
             'auto_generate' => false,
             'cache_enabled' => true,
-            'use_parallel_crawling' => true,
             'commit_message' => '',
             'enable_tag_archive' => false,
             'enable_date_archive' => false,
@@ -106,6 +115,20 @@ class SGE_Settings {
             'enable_sitemap' => true,
             'enable_robots_txt' => false,
             'enable_rss' => true,
+            // Cloudflare Workers設定
+            'cloudflare_enabled' => false,
+            'cloudflare_api_token' => '',
+            'cloudflare_account_id' => '',
+            'cloudflare_script_name' => '',
+            // GitLab設定
+            'gitlab_enabled' => false,
+            'gitlab_token' => '',
+            'gitlab_project' => '',
+            'gitlab_branch_mode' => 'existing',
+            'gitlab_existing_branch' => '',
+            'gitlab_new_branch' => '',
+            'gitlab_base_branch' => '',
+            'gitlab_api_url' => 'https://gitlab.com/api/v4',
         );
 
         // デフォルト値とマージ（既存の設定を優先）
@@ -115,6 +138,18 @@ class SGE_Settings {
         if ( ! empty( $settings['github_token'] ) ) {
             $decrypted = $this->decrypt_token( $settings['github_token'] );
             $settings['github_token'] = is_wp_error( $decrypted ) ? '' : $decrypted;
+        }
+
+        // Cloudflareトークンを復号化
+        if ( ! empty( $settings['cloudflare_api_token'] ) ) {
+            $decrypted = $this->decrypt_token( $settings['cloudflare_api_token'] );
+            $settings['cloudflare_api_token'] = is_wp_error( $decrypted ) ? '' : $decrypted;
+        }
+
+        // GitLabトークンを復号化
+        if ( ! empty( $settings['gitlab_token'] ) ) {
+            $decrypted = $this->decrypt_token( $settings['gitlab_token'] );
+            $settings['gitlab_token'] = is_wp_error( $decrypted ) ? '' : $decrypted;
         }
 
         return $settings;
@@ -130,12 +165,28 @@ class SGE_Settings {
         // 現在の設定を取得（暗号化されたトークンを取得するためraw_settingsを使用）
         $current_raw = get_option( 'sge_settings', array() );
 
-        // トークンが空の場合、既存のトークンを保持
+        // GitHubトークンが空の場合、既存のトークンを保持
         if ( empty( $settings['github_token'] ) && ! empty( $current_raw['github_token'] ) ) {
             $settings['github_token'] = $current_raw['github_token'];
             // バリデーション用に復号化した値を一時的に設定
             $decrypted = $this->decrypt_token( $current_raw['github_token'] );
             $settings['_has_existing_token'] = ! is_wp_error( $decrypted );
+        }
+
+        // Cloudflareトークンが空の場合、既存のトークンを保持
+        if ( empty( $settings['cloudflare_api_token'] ) && ! empty( $current_raw['cloudflare_api_token'] ) ) {
+            $settings['cloudflare_api_token'] = $current_raw['cloudflare_api_token'];
+            // バリデーション用に復号化した値を一時的に設定
+            $decrypted = $this->decrypt_token( $current_raw['cloudflare_api_token'] );
+            $settings['_has_existing_cf_token'] = ! is_wp_error( $decrypted );
+        }
+
+        // GitLabトークンが空の場合、既存のトークンを保持
+        if ( empty( $settings['gitlab_token'] ) && ! empty( $current_raw['gitlab_token'] ) ) {
+            $settings['gitlab_token'] = $current_raw['gitlab_token'];
+            // バリデーション用に復号化した値を一時的に設定
+            $decrypted = $this->decrypt_token( $current_raw['gitlab_token'] );
+            $settings['_has_existing_gl_token'] = ! is_wp_error( $decrypted );
         }
 
         // バリデーション
@@ -146,11 +197,25 @@ class SGE_Settings {
 
         // 一時フラグを削除
         unset( $settings['_has_existing_token'] );
+        unset( $settings['_has_existing_cf_token'] );
+        unset( $settings['_has_existing_gl_token'] );
 
-        // 新しいトークンが入力された場合のみ暗号化
+        // GitHubトークン: 新しいトークンが入力された場合のみ暗号化
         if ( ! empty( $settings['github_token'] ) && strpos( $settings['github_token'], 'v2:' ) !== 0 && strpos( $settings['github_token'], '::' ) === false ) {
             // 暗号化されていない新しいトークン
             $settings['github_token'] = $this->encrypt_token( $settings['github_token'] );
+        }
+
+        // Cloudflareトークン: 新しいトークンが入力された場合のみ暗号化
+        if ( ! empty( $settings['cloudflare_api_token'] ) && strpos( $settings['cloudflare_api_token'], 'v2:' ) !== 0 && strpos( $settings['cloudflare_api_token'], '::' ) === false ) {
+            // 暗号化されていない新しいトークン
+            $settings['cloudflare_api_token'] = $this->encrypt_token( $settings['cloudflare_api_token'] );
+        }
+
+        // GitLabトークン: 新しいトークンが入力された場合のみ暗号化
+        if ( ! empty( $settings['gitlab_token'] ) && strpos( $settings['gitlab_token'], 'v2:' ) !== 0 && strpos( $settings['gitlab_token'], '::' ) === false ) {
+            // 暗号化されていない新しいトークン
+            $settings['gitlab_token'] = $this->encrypt_token( $settings['gitlab_token'] );
         }
 
         // バージョン情報を追加
@@ -170,7 +235,7 @@ class SGE_Settings {
      */
     public function validate_settings( $settings ) {
         // 出力先が最低1つ選択されているかチェック
-        if ( empty( $settings['github_enabled'] ) && empty( $settings['git_local_enabled'] ) && empty( $settings['local_enabled'] ) && empty( $settings['zip_enabled'] ) ) {
+        if ( empty( $settings['github_enabled'] ) && empty( $settings['git_local_enabled'] ) && empty( $settings['local_enabled'] ) && empty( $settings['zip_enabled'] ) && empty( $settings['cloudflare_enabled'] ) && empty( $settings['gitlab_enabled'] ) ) {
             return new WP_Error( 'no_output', '出力先を最低1つ選択してください。' );
         }
 
@@ -180,6 +245,13 @@ class SGE_Settings {
             $has_token = ! empty( $settings['github_token'] ) || ! empty( $settings['_has_existing_token'] );
             if ( ! $has_token ) {
                 return new WP_Error( 'token_required', 'GitHubアクセストークンを入力してください。' );
+            }
+
+            // 新しいトークンの形式検証
+            if ( ! empty( $settings['github_token'] ) && empty( $settings['_has_existing_token'] ) ) {
+                if ( ! $this->is_valid_github_token_format( $settings['github_token'] ) ) {
+                    return new WP_Error( 'invalid_token_format', 'GitHubトークンの形式が正しくありません。' );
+                }
             }
 
             // リポジトリ名が必須
@@ -284,6 +356,79 @@ class SGE_Settings {
             }
         }
 
+        // Cloudflare Workers出力が有効な場合
+        if ( ! empty( $settings['cloudflare_enabled'] ) ) {
+            // APIトークンが必須（既存トークンがある場合はスキップ）
+            $has_cf_token = ! empty( $settings['cloudflare_api_token'] ) || ! empty( $settings['_has_existing_cf_token'] );
+            if ( ! $has_cf_token ) {
+                return new WP_Error( 'cloudflare_token_required', 'Cloudflare APIトークンを入力してください。' );
+            }
+
+            // Account IDが必須
+            if ( empty( $settings['cloudflare_account_id'] ) ) {
+                return new WP_Error( 'cloudflare_account_id_required', 'Cloudflare Account IDを入力してください。' );
+            }
+
+            // Account IDの形式チェック（32文字の16進数）
+            if ( ! preg_match( '/^[a-f0-9]{32}$/', $settings['cloudflare_account_id'] ) ) {
+                return new WP_Error( 'invalid_cloudflare_account_id', 'Cloudflare Account IDの形式が正しくありません（32文字の16進数）' );
+            }
+
+            // Worker名が必須
+            if ( empty( $settings['cloudflare_script_name'] ) ) {
+                return new WP_Error( 'cloudflare_script_name_required', 'Worker名を入力してください。' );
+            }
+
+            // Worker名の形式チェック（英数字、ハイフン、アンダースコアのみ）
+            if ( ! preg_match( '/^[a-z0-9][a-z0-9_-]{0,62}$/', $settings['cloudflare_script_name'] ) ) {
+                return new WP_Error( 'invalid_cloudflare_script_name', 'Worker名は英小文字・数字で始まり、英小文字・数字・ハイフン・アンダースコアのみ使用できます（最大63文字）' );
+            }
+        }
+
+        // GitLab出力が有効な場合
+        if ( ! empty( $settings['gitlab_enabled'] ) ) {
+            // トークンが必須（既存トークンがある場合はスキップ）
+            $has_gl_token = ! empty( $settings['gitlab_token'] ) || ! empty( $settings['_has_existing_gl_token'] );
+            if ( ! $has_gl_token ) {
+                return new WP_Error( 'gitlab_token_required', 'GitLabアクセストークンを入力してください。' );
+            }
+
+            // 新しいトークンの形式検証
+            if ( ! empty( $settings['gitlab_token'] ) && empty( $settings['_has_existing_gl_token'] ) ) {
+                if ( ! $this->is_valid_gitlab_token_format( $settings['gitlab_token'] ) ) {
+                    return new WP_Error( 'invalid_gitlab_token_format', 'GitLabトークンの形式が正しくありません。' );
+                }
+            }
+
+            // プロジェクトパスが必須
+            if ( empty( $settings['gitlab_project'] ) ) {
+                return new WP_Error( 'gitlab_project_required', 'GitLabプロジェクトパスを入力してください（例: username/project）' );
+            }
+
+            // プロジェクトパスの形式チェック
+            if ( ! preg_match( '/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/', $settings['gitlab_project'] ) ) {
+                return new WP_Error( 'invalid_gitlab_project', 'GitLabプロジェクトパスの形式が正しくありません（例: username/project）' );
+            }
+
+            // ブランチモードに応じたバリデーション
+            if ( $settings['gitlab_branch_mode'] === 'existing' ) {
+                if ( empty( $settings['gitlab_existing_branch'] ) ) {
+                    return new WP_Error( 'gitlab_branch_required', 'GitLabブランチ名を入力してください。' );
+                }
+            } elseif ( $settings['gitlab_branch_mode'] === 'new' ) {
+                if ( empty( $settings['gitlab_new_branch'] ) ) {
+                    return new WP_Error( 'gitlab_new_branch_required', 'GitLab新規ブランチ名を入力してください。' );
+                }
+            }
+
+            // API URLの形式チェック（オプション）
+            if ( ! empty( $settings['gitlab_api_url'] ) ) {
+                if ( ! filter_var( $settings['gitlab_api_url'], FILTER_VALIDATE_URL ) ) {
+                    return new WP_Error( 'invalid_gitlab_api_url', 'GitLab API URLの形式が正しくありません。' );
+                }
+            }
+        }
+
         // タイムアウト時間のバリデーション
         $timeout = intval( $settings['timeout'] );
         if ( $timeout < 60 || $timeout > 18000 ) {
@@ -324,6 +469,20 @@ class SGE_Settings {
                 // 危険な文字のチェック（glob用の安全な文字のみ許可）
                 if ( ! preg_match( '/^[a-zA-Z0-9_\-.*\/]+$/', $pattern ) ) {
                     return new WP_Error( 'invalid_exclude_pattern', '除外パターンに使用できない文字が含まれています。' );
+                }
+                // ワイルドカードの数を制限（DoS対策）
+                $wildcard_count = substr_count( $pattern, '*' );
+                if ( $wildcard_count > 3 ) {
+                    return new WP_Error( 'too_many_wildcards', '除外パターンのワイルドカード(*)は3つまでです。' );
+                }
+                // パスの深さを制限
+                $depth = substr_count( $pattern, '/' );
+                if ( $depth > 10 ) {
+                    return new WP_Error( 'pattern_too_deep', '除外パターンのパス階層が深すぎます（最大10階層）。' );
+                }
+                // パターン長の制限
+                if ( strlen( $pattern ) > 200 ) {
+                    return new WP_Error( 'pattern_too_long', '除外パターンが長すぎます（最大200文字）。' );
                 }
             }
         }
@@ -566,6 +725,7 @@ class SGE_Settings {
             'version' => SGE_VERSION,
             'github_enabled' => false,
             'local_enabled' => false,
+            'zip_enabled' => true, // Ver1.2: デフォルト有効
             'github_token' => isset( $current['github_token'] ) ? $current['github_token'] : '', // トークンは保持
             'github_repo' => '',
             'github_branch_mode' => 'existing',
@@ -581,7 +741,6 @@ class SGE_Settings {
             'timeout' => 600,
             'auto_generate' => false,
             'cache_enabled' => true,
-            'use_parallel_crawling' => true,
             'commit_message' => '',
             // 出力設定
             'enable_tag_archive' => false,
@@ -591,6 +750,11 @@ class SGE_Settings {
             'enable_sitemap' => true,
             'enable_robots_txt' => false,
             'enable_rss' => true,
+            // Cloudflare Workers設定（トークンは保持）
+            'cloudflare_enabled' => false,
+            'cloudflare_api_token' => isset( $current['cloudflare_api_token'] ) ? $current['cloudflare_api_token'] : '',
+            'cloudflare_account_id' => '',
+            'cloudflare_script_name' => '',
         );
 
         update_option( 'sge_settings', $default_settings );
@@ -682,5 +846,78 @@ class SGE_Settings {
         update_option( 'sge_settings', $merged );
 
         return true;
+    }
+
+    /**
+     * GitHubトークンの形式が有効かチェック
+     *
+     * @param string $token トークン
+     * @return bool 有効な形式ならtrue
+     */
+    private function is_valid_github_token_format( $token ) {
+        // 暗号化済みトークンはスキップ
+        if ( strpos( $token, 'v2:' ) === 0 || strpos( $token, '::' ) !== false ) {
+            return true;
+        }
+
+        // 長さチェック（最小20文字、最大255文字）
+        $len = strlen( $token );
+        if ( $len < 20 || $len > 255 ) {
+            return false;
+        }
+
+        // GitHub PAT形式: ghp_, gho_, ghu_, ghs_, ghr_ で始まる
+        // または従来の40文字の16進数形式
+        if ( preg_match( '/^(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,251}$/', $token ) ) {
+            return true;
+        }
+
+        // 従来の40文字16進数形式
+        if ( preg_match( '/^[a-f0-9]{40}$/', $token ) ) {
+            return true;
+        }
+
+        // Fine-grained PAT形式
+        if ( preg_match( '/^github_pat_[A-Za-z0-9_]{22,}$/', $token ) ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * GitLabトークンの形式が有効かチェック
+     *
+     * @param string $token トークン
+     * @return bool 有効な形式ならtrue
+     */
+    private function is_valid_gitlab_token_format( $token ) {
+        // 暗号化済みトークンはスキップ
+        if ( strpos( $token, 'v2:' ) === 0 || strpos( $token, '::' ) !== false ) {
+            return true;
+        }
+
+        // 長さチェック（最小10文字、最大255文字）
+        $len = strlen( $token );
+        if ( $len < 10 || $len > 255 ) {
+            return false;
+        }
+
+        // GitLab PAT形式: glpat- で始まる（ドット区切りセクションも許可）
+        if ( preg_match( '/^glpat-[A-Za-z0-9_.-]+$/', $token ) ) {
+            return true;
+        }
+
+        // Project/Group Access Token形式: gl***- で始まる
+        if ( preg_match( '/^gl[a-z]+-[A-Za-z0-9_.-]+$/', $token ) ) {
+            return true;
+        }
+
+        // 従来の形式（英数字、アンダースコア、ハイフン、ドット）
+        if ( preg_match( '/^[A-Za-z0-9_.-]+$/', $token ) ) {
+            return true;
+        }
+
+        return false;
     }
 }

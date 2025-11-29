@@ -1,0 +1,5 @@
+# GitHub Release ZIP から除外
+.gitignore export-ignore
+.gitattributes export-ignore
+AI_POLICY.md export-ignore
+CREDITS.md export-ignore

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Static Generation Engine
  * Description: WordPressサイトを静的化してGitHubまたはローカルに出力するプラグイン
- * Version: 1.1.0
+ * Version: 1.2.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Vill Yoshioka
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // プラグインの定数を定義
-define( 'SGE_VERSION', '1.1.0' );
+define( 'SGE_VERSION', '1.2.0' );
 define( 'SGE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SGE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'SGE_PLUGIN_FILE', __FILE__ );
@@ -63,11 +63,15 @@ class Static_Generation_Engine {
         require_once SGE_PLUGIN_DIR . 'includes/class-logger.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-settings.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-cache.php';
+        require_once SGE_PLUGIN_DIR . 'includes/interface-git-provider.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-github-api.php';
+        require_once SGE_PLUGIN_DIR . 'includes/class-gitlab-api.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-parallel-crawler.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-asset-detector.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-generator.php';
+        require_once SGE_PLUGIN_DIR . 'includes/class-cloudflare-workers.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-admin.php';
+        require_once SGE_PLUGIN_DIR . 'includes/class-updater.php';
     }
 
     /**
@@ -85,6 +89,9 @@ class Static_Generation_Engine {
         if ( is_admin() ) {
             SGE_Admin::get_instance();
         }
+
+        // 自動更新を初期化
+        new SGE_Updater();
 
         // 自動静的化フック
         add_action( 'transition_post_status', array( $this, 'auto_generate_on_post_change' ), 10, 3 );

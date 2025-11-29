@@ -54,3 +54,10 @@ composer.lock
 .env
 .env.local
 .env.*.local
+
+# Claude Code
+.claude/
+
+# Internal documentation
+VERSIONING.md
+DEVELOPMENT.md
