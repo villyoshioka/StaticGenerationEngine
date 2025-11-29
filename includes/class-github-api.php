@@ -89,7 +89,7 @@ class SGE_GitHub_API {
         $status_code = wp_remote_retrieve_response_code( $response );
 
         if ( $status_code === 201 ) {
-            $this->logger->add_log( "リポジトリ {$this->repo} を作成しました" );
+            $this->logger->info( "リポジトリ {$this->repo} を作成しました" );
             return true;
         } else {
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -197,11 +197,11 @@ class SGE_GitHub_API {
      * @return bool|WP_Error 成功ならtrue、失敗ならWP_Error
      */
     private function create_initial_file( $files, $commit_message ) {
-        $this->logger->add_log( '空のリポジトリに初回コミットを作成します (' . count( $files ) . 'ファイル)' );
+        $this->logger->debug( '空のリポジトリに初回コミットを作成します (' . count( $files ) . 'ファイル)' );
 
         // 空のリポジトリには最初の1ファイルをContents APIで作成する必要がある
         // 空のindex.htmlを作成してリポジトリを初期化
-        $this->logger->add_log( '初期ファイルを作成中: index.html' );
+        $this->logger->debug( '初期ファイルを作成中: index.html' );
 
         $body = array(
             'message' => $commit_message,
@@ -212,7 +212,7 @@ class SGE_GitHub_API {
         $response = $this->api_request( "repos/{$this->repo}/contents/index.html", 'PUT', $body );
 
         if ( is_wp_error( $response ) ) {
-            $this->logger->add_log( '初期ファイルの作成に失敗しました: ' . $response->get_error_message(), true );
+            $this->logger->error( '初期ファイルの作成に失敗しました: ' . $response->get_error_message() );
             return $response;
         }
 
@@ -220,11 +220,11 @@ class SGE_GitHub_API {
         if ( $status_code !== 201 ) {
             $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $response_body['message'] ) ? $response_body['message'] : '初期ファイルの作成に失敗しました';
-            $this->logger->add_log( "初期ファイル作成エラー: {$error_message} (Status: {$status_code})", true );
+            $this->logger->error( "初期ファイル作成エラー: {$error_message} (Status: {$status_code})" );
             return new WP_Error( 'create_initial_file_failed', $error_message );
         }
 
-        $this->logger->add_log( '初期ファイルを作成しました。すべてのファイルを追加します...' );
+        $this->logger->debug( '初期ファイルを作成しました。すべてのファイルを追加します...' );
 
         // すべてのファイルをGit Data APIで追加
         return $this->push_files_via_tree( $files, $commit_message, true );
@@ -259,20 +259,20 @@ class SGE_GitHub_API {
             $response = $this->api_request( "repos/{$this->repo}/contents/{$path}", 'PUT', $body );
 
             if ( is_wp_error( $response ) ) {
-                $this->logger->add_log( "ファイルの更新に失敗しました: {$path} - " . $response->get_error_message(), true );
+                $this->logger->error( "ファイルの更新に失敗しました: {$path} - " . $response->get_error_message() );
                 $error_count++;
             } else {
                 $status_code = wp_remote_retrieve_response_code( $response );
                 if ( $status_code === 200 || $status_code === 201 ) {
                     $success_count++;
                 } else {
-                    $this->logger->add_log( "ファイルの更新に失敗しました: {$path}", true );
+                    $this->logger->error( "ファイルの更新に失敗しました: {$path}" );
                     $error_count++;
                 }
             }
         }
 
-        $this->logger->add_log( "{$success_count}個のファイルを更新しました" );
+        $this->logger->debug( "{$success_count}個のファイルを更新しました" );
 
         if ( $error_count > 0 ) {
             return new WP_Error( 'update_files_partial', "{$error_count}個のファイルの更新に失敗しました。" );
@@ -357,28 +357,28 @@ class SGE_GitHub_API {
         // 開始時刻を記録
         $start_time = microtime( true );
         $start_timestamp = date( 'Y-m-d H:i:s' );
-        $this->logger->add_log( "GitHubプッシュ開始: {$start_timestamp}" );
+        $this->logger->debug( "GitHubプッシュ開始: {$start_timestamp}" );
 
         // ディレクトリの存在確認
         if ( ! is_dir( $base_dir ) ) {
-            $this->logger->add_log( 'エラー: 一時ディレクトリが存在しません: ' . $base_dir, true );
+            $this->logger->error( '一時ディレクトリが存在しません: ' . $base_dir );
             return new WP_Error( 'temp_dir_not_found', '一時ディレクトリが存在しません' );
         }
 
         // 差分検出（強制プッシュでない場合）
         $changed_file_paths = $file_paths;
         if ( ! $force_full_push ) {
-            $this->logger->add_log( "差分検出を実行中..." );
+            $this->logger->debug( "差分検出を実行中..." );
             $changed_file_paths = $this->get_changed_file_paths_from_disk( $file_paths, $base_dir );
 
             if ( is_wp_error( $changed_file_paths ) ) {
                 // ツリー取得失敗時は全ファイルをプッシュ
-                $this->logger->add_log( '差分検出失敗: 全ファイルをプッシュします' );
+                $this->logger->debug( '差分検出失敗: 全ファイルをプッシュします' );
                 $changed_file_paths = $file_paths;
             } elseif ( empty( $changed_file_paths ) ) {
                 // 変更なし
-                $this->logger->add_log( "変更なし: プッシュをスキップします" );
-                $this->logger->add_log( sprintf(
+                $this->logger->debug( "変更なし: プッシュをスキップします" );
+                $this->logger->debug( sprintf(
                     "GitHubプッシュ完了: %s (合計処理時間: %.2f秒)",
                     date( 'Y-m-d H:i:s' ),
                     microtime( true ) - $start_time
@@ -386,7 +386,7 @@ class SGE_GitHub_API {
                 return true;
             }
         } else {
-            $this->logger->add_log( "強制全体プッシュ: " . count( $file_paths ) . "個のファイルをプッシュします" );
+            $this->logger->debug( "強制全体プッシュ: " . count( $file_paths ) . "個のファイルをプッシュします" );
         }
 
         // 変更ファイルだけをバッチ化
@@ -394,7 +394,7 @@ class SGE_GitHub_API {
         $total_batches = count( $path_batches );
 
         if ( $total_batches > 1 ) {
-            $this->logger->add_log( "合計 {$total_batches} バッチでコミットします（各バッチ最大{$batch_size}ファイル）" );
+            $this->logger->debug( "合計 {$total_batches} バッチでコミットします（各バッチ最大{$batch_size}ファイル）" );
         }
 
         foreach ( $path_batches as $batch_index => $batch_paths ) {
@@ -418,9 +418,11 @@ class SGE_GitHub_API {
                 $relative_path = str_replace( '\\', '/', $relative_path );
                 $full_path = trailingslashit( $base_dir ) . $relative_path;
 
-                $content = @file_get_contents( $full_path );
-                if ( $content !== false ) {
-                    $batch_files[ $relative_path ] = $content;
+                if ( is_readable( $full_path ) ) {
+                    $content = file_get_contents( $full_path );
+                    if ( $content !== false ) {
+                        $batch_files[ $relative_path ] = $content;
+                    }
                 }
             }
 
@@ -431,7 +433,7 @@ class SGE_GitHub_API {
             unset( $batch_files );
 
             if ( is_wp_error( $result ) ) {
-                $this->logger->add_log( "バッチ {$batch_num} の処理に失敗しました: " . $result->get_error_message(), true );
+                $this->logger->error( "バッチ {$batch_num} の処理に失敗しました: " . $result->get_error_message() );
                 return $result;
             }
 
@@ -444,7 +446,7 @@ class SGE_GitHub_API {
         // 全体の処理完了時刻を記録
         $total_elapsed = microtime( true ) - $start_time;
         $end_timestamp = date( 'Y-m-d H:i:s' );
-        $this->logger->add_log( sprintf(
+        $this->logger->debug( sprintf(
             "GitHubプッシュ完了: %s (合計処理時間: %.2f秒 / %.2f分)",
             $end_timestamp,
             $total_elapsed,
@@ -467,7 +469,7 @@ class SGE_GitHub_API {
         $file_batches = array_chunk( $files, $batch_size, true );
         $total_batches = count( $file_batches );
 
-        $this->logger->add_log( "合計 {$total_batches} バッチでコミットします（各バッチ最大{$batch_size}ファイル）" );
+        $this->logger->debug( "合計 {$total_batches} バッチでコミットします（各バッチ最大{$batch_size}ファイル）" );
 
         foreach ( $file_batches as $batch_index => $batch_files ) {
             $batch_num = $batch_index + 1;
@@ -479,20 +481,20 @@ class SGE_GitHub_API {
                 $batch_message .= " (batch {$batch_num}/{$total_batches})";
             }
 
-            $this->logger->add_log( "バッチ {$batch_num}/{$total_batches} を処理中 ({$file_count}ファイル)..." );
+            $this->logger->debug( "バッチ {$batch_num}/{$total_batches} を処理中 ({$file_count}ファイル)..." );
 
             // Git Trees APIを使用してバッチコミット
             $result = $this->push_files_via_tree( $batch_files, $batch_message );
 
             if ( is_wp_error( $result ) ) {
-                $this->logger->add_log( "バッチ {$batch_num} の処理に失敗しました: " . $result->get_error_message(), true );
+                $this->logger->error( "バッチ {$batch_num} の処理に失敗しました: " . $result->get_error_message() );
                 return $result;
             }
 
-            $this->logger->add_log( "バッチ {$batch_num}/{$total_batches} の処理が完了しました" );
+            $this->logger->debug( "バッチ {$batch_num}/{$total_batches} の処理が完了しました" );
         }
 
-        $this->logger->add_log( "すべてのバッチ処理が完了しました" );
+        $this->logger->debug( "すべてのバッチ処理が完了しました" );
         return true;
     }
 
@@ -511,7 +513,7 @@ class SGE_GitHub_API {
         if ( is_wp_error( $latest_commit ) ) {
             // 空のリポジトリの場合は従来の方法で最初のファイルを作成
             if ( $latest_commit->get_error_code() === 'branch_not_found' ) {
-                $this->logger->add_log( "空のリポジトリ: 初回コミットを作成します" );
+                $this->logger->debug( "空のリポジトリ: 初回コミットを作成します" );
                 return $this->create_initial_file( $files, $commit_message );
             }
             return $latest_commit;
@@ -527,49 +529,49 @@ class SGE_GitHub_API {
 
             // 変更がない場合はスキップ
             if ( empty( $files_to_push ) ) {
-                $this->logger->add_log( "変更なし: プッシュをスキップします" );
+                $this->logger->debug( "変更なし: プッシュをスキップします" );
                 return true;
             }
         } else {
-            $this->logger->add_log( "バッチプッシュ: " . count( $files ) . "個のファイルをプッシュします（差分検出済み）" );
+            $this->logger->debug( "バッチプッシュ: " . count( $files ) . "個のファイルをプッシュします（差分検出済み）" );
         }
 
         // 並列でBlobを作成
-        $this->logger->add_log( "Blob並列作成開始: " . count( $files_to_push ) . "個のファイル" );
+        $this->logger->debug( "Blob並列作成開始: " . count( $files_to_push ) . "個のファイル" );
         $tree_items = $this->create_blobs_parallel( $files_to_push, 5 );
 
         if ( is_wp_error( $tree_items ) ) {
             return $tree_items;
         }
 
-        $this->logger->add_log( "すべてのBlob作成完了 (" . count( $tree_items ) . "個)" );
+        $this->logger->debug( "すべてのBlob作成完了 (" . count( $tree_items ) . "個)" );
 
         // ツリーを作成
-        $this->logger->add_log( "Tree作成中..." );
+        $this->logger->debug( "Tree作成中..." );
         $tree_sha = $this->create_tree( $tree_items, $base_tree );
         if ( is_wp_error( $tree_sha ) ) {
-            $this->logger->add_log( "Tree作成エラー: " . $tree_sha->get_error_message(), true );
+            $this->logger->error( "Tree作成エラー: " . $tree_sha->get_error_message() );
             return $tree_sha;
         }
-        $this->logger->add_log( "Tree作成完了" );
+        $this->logger->debug( "Tree作成完了" );
 
         // コミットを作成
-        $this->logger->add_log( "コミット作成中..." );
+        $this->logger->debug( "コミット作成中..." );
         $commit_sha = $this->create_commit( $commit_message, $tree_sha, array( $latest_commit['sha'] ) );
         if ( is_wp_error( $commit_sha ) ) {
-            $this->logger->add_log( "コミット作成エラー: " . $commit_sha->get_error_message(), true );
+            $this->logger->error( "コミット作成エラー: " . $commit_sha->get_error_message() );
             return $commit_sha;
         }
-        $this->logger->add_log( "コミット作成完了" );
+        $this->logger->debug( "コミット作成完了" );
 
         // ブランチを更新
-        $this->logger->add_log( "ブランチ更新中..." );
+        $this->logger->debug( "ブランチ更新中..." );
         $result = $this->update_branch_ref( $commit_sha );
         if ( is_wp_error( $result ) ) {
-            $this->logger->add_log( "ブランチ更新エラー: " . $result->get_error_message(), true );
+            $this->logger->error( "ブランチ更新エラー: " . $result->get_error_message() );
             return $result;
         }
-        $this->logger->add_log( "ブランチ更新完了" );
+        $this->logger->debug( "ブランチ更新完了" );
 
         return true;
     }
@@ -592,21 +594,21 @@ class SGE_GitHub_API {
         if ( $status_code === 404 || $status_code === 409 ) {
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $body['message'] ) ? $body['message'] : 'ブランチが見つかりません';
-            $this->logger->add_log( '空のリポジトリまたはブランチ未作成: ' . $error_message );
+            $this->logger->debug( '空のリポジトリまたはブランチ未作成: ' . $error_message );
             return new WP_Error( 'branch_not_found', $error_message );
         }
 
         if ( $status_code !== 200 ) {
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $body['message'] ) ? $body['message'] : 'コミット情報の取得に失敗しました';
-            $this->logger->add_log( 'GitHub API エラー (get ref): ' . $error_message . ' (Status: ' . $status_code . ')', true );
+            $this->logger->error( 'GitHub API エラー (get ref): ' . $error_message . ' (Status: ' . $status_code . ')' );
             return new WP_Error( 'get_commit_failed', $error_message );
         }
 
         $ref_data = json_decode( wp_remote_retrieve_body( $response ), true );
 
         if ( ! isset( $ref_data['object']['sha'] ) ) {
-            $this->logger->add_log( 'GitHub API レスポンスが不正です: ' . wp_json_encode( $ref_data ), true );
+            $this->logger->error( 'GitHub API レスポンスが不正です: ' . wp_json_encode( $ref_data ) );
             return new WP_Error( 'invalid_response', 'GitHub APIのレスポンスが不正です' );
         }
 
@@ -624,14 +626,14 @@ class SGE_GitHub_API {
         if ( $status_code !== 200 ) {
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $body['message'] ) ? $body['message'] : 'コミット詳細の取得に失敗しました';
-            $this->logger->add_log( 'GitHub API エラー (get commit): ' . $error_message . ' (Status: ' . $status_code . ')', true );
+            $this->logger->error( 'GitHub API エラー (get commit): ' . $error_message . ' (Status: ' . $status_code . ')' );
             return new WP_Error( 'get_commit_failed', $error_message );
         }
 
         $commit_data = json_decode( wp_remote_retrieve_body( $response ), true );
 
         if ( ! isset( $commit_data['tree']['sha'] ) ) {
-            $this->logger->add_log( 'コミットデータが不正です: ' . wp_json_encode( $commit_data ), true );
+            $this->logger->error( 'コミットデータが不正です: ' . wp_json_encode( $commit_data ) );
             return new WP_Error( 'invalid_commit_data', 'コミットデータが不正です' );
         }
 
@@ -688,7 +690,7 @@ class SGE_GitHub_API {
         // Requestsライブラリが利用可能かチェック
         if ( ! class_exists( 'Requests' ) && ! class_exists( 'WpOrg\Requests\Requests' ) ) {
             // フォールバック: 通常の順次処理
-            $this->logger->add_log( 'Requestsライブラリが利用できないため、順次処理を使用します' );
+            $this->logger->debug( 'Requestsライブラリが利用できないため、順次処理を使用します' );
             return $this->create_blobs_sequential( $files );
         }
 
@@ -752,7 +754,7 @@ class SGE_GitHub_API {
                                 );
                                 $processed++;
                             } else {
-                                $this->logger->add_log( "Blob作成エラー: {$path} - レスポンスにSHAがありません", true );
+                                $this->logger->error( "Blob作成エラー: {$path} - レスポンスにSHAがありません" );
                                 return new WP_Error( 'create_blob_failed', "Blob作成に失敗: {$path}" );
                             }
                         } else {
@@ -760,7 +762,7 @@ class SGE_GitHub_API {
                             if ( isset( $response->headers['x-ratelimit-remaining'] ) ) {
                                 $remaining = intval( $response->headers['x-ratelimit-remaining'] );
                                 if ( $remaining < 100 ) {
-                                    $this->logger->add_log( "APIレート制限警告: 残り {$remaining} リクエスト" );
+                                    $this->logger->warning( "APIレート制限警告: 残り {$remaining} リクエスト" );
                                 }
                             }
 
@@ -769,12 +771,12 @@ class SGE_GitHub_API {
 
                             // 403エラー（セカンダリレート制限）の場合は待機して全体をリトライ
                             if ( $response->status_code === 403 && strpos( $error_message, 'secondary rate limit' ) !== false ) {
-                                $this->logger->add_log( "セカンダリレート制限検出: 60秒待機してリトライします..." );
+                                $this->logger->warning( "セカンダリレート制限検出: 60秒待機してリトライします..." );
                                 sleep( 60 );
                                 return $this->create_blobs_sequential( $files ); // フォールバック
                             }
 
-                            $this->logger->add_log( "Blob作成エラー: {$path} - {$error_message} (Status: {$response->status_code})", true );
+                            $this->logger->error( "Blob作成エラー: {$path} - {$error_message} (Status: {$response->status_code})" );
                             return new WP_Error( 'create_blob_failed', "Blob作成に失敗: {$path} - {$error_message}" );
                         }
                     } else {
@@ -812,19 +814,19 @@ class SGE_GitHub_API {
                         // ネットワーク例外の場合はリトライ対象として記録して続行
                         if ( $is_network_exception ) {
                             $failed_files[ $path ] = $files[ $path ];
-                            $this->logger->add_log( "ネットワークエラー: {$path} - リトライ対象に追加" );
+                            $this->logger->debug( "ネットワークエラー: {$path} - リトライ対象に追加" );
                             continue; // 次のファイルへ
                         }
 
                         // その他のエラーは即座に終了
-                        $this->logger->add_log( "Blob作成エラー: {$path} - {$error_details}", true );
+                        $this->logger->error( "Blob作成エラー: {$path} - {$error_details}" );
                         return new WP_Error( 'create_blob_failed', "Blob作成に失敗: {$path} - {$error_details}" );
                     }
                 }
 
             } catch ( Exception $e ) {
                 // 例外発生時もリトライ対象に追加して続行
-                $this->logger->add_log( '並列リクエスト例外: ' . $e->getMessage() );
+                $this->logger->debug( '並列リクエスト例外: ' . $e->getMessage() );
                 foreach ( $chunk_paths as $chunk_path ) {
                     if ( ! isset( $failed_files[ $chunk_path ] ) && isset( $files[ $chunk_path ] ) ) {
                         $failed_files[ $chunk_path ] = $files[ $chunk_path ];
@@ -835,7 +837,7 @@ class SGE_GitHub_API {
             // 進捗ログ
             if ( $total_chunks > 1 ) {
                 $chunk_num = $chunk_index + 1;
-                $this->logger->add_log( "並列Blob作成: {$processed}/" . count( $files ) . "個完了 ({$chunk_num}/{$total_chunks})" );
+                $this->logger->debug( "並列Blob作成: {$processed}/" . count( $files ) . "個完了 ({$chunk_num}/{$total_chunks})" );
             }
 
             // チャンク間で待機（セカンダリレート制限回避）
@@ -846,11 +848,11 @@ class SGE_GitHub_API {
 
         // 失敗ファイルのリトライ処理
         if ( ! empty( $failed_files ) ) {
-            $this->logger->add_log( "リトライ処理開始: " . count( $failed_files ) . "個のファイル" );
+            $this->logger->debug( "リトライ処理開始: " . count( $failed_files ) . "個のファイル" );
 
             for ( $retry = 1; $retry <= 3; $retry++ ) {
                 $wait_time = pow( 2, $retry ) * 5; // 10, 20, 40秒
-                $this->logger->add_log( "リトライ {$retry}/3: {$wait_time}秒待機中..." );
+                $this->logger->debug( "リトライ {$retry}/3: {$wait_time}秒待機中..." );
                 sleep( $wait_time );
 
                 $retry_result = $this->create_blobs_sequential( $failed_files );
@@ -859,7 +861,7 @@ class SGE_GitHub_API {
                     // 成功したらツリーアイテムにマージ
                     $tree_items = array_merge( $tree_items, $retry_result );
                     $failed_files = array();
-                    $this->logger->add_log( "リトライ成功: 全ファイルのBlob作成完了" );
+                    $this->logger->debug( "リトライ成功: 全ファイルのBlob作成完了" );
                     break;
                 }
             }
@@ -867,7 +869,7 @@ class SGE_GitHub_API {
             // 3回リトライしても失敗した場合はエラーを返す
             if ( ! empty( $failed_files ) ) {
                 $failed_count = count( $failed_files );
-                $this->logger->add_log( "エラー: {$failed_count}個のファイルのBlob作成に失敗しました", true );
+                $this->logger->error( "{$failed_count}個のファイルのBlob作成に失敗しました" );
                 return new WP_Error( 'create_blob_failed', "{$failed_count}個のファイルのBlob作成に失敗しました（3回リトライ後）" );
             }
         }
@@ -892,7 +894,7 @@ class SGE_GitHub_API {
             for ( $retry = 0; $retry <= $max_retries; $retry++ ) {
                 if ( $retry > 0 ) {
                     $wait = $retry * 5; // 5, 10, 15秒
-                    $this->logger->add_log( "リトライ {$retry}/{$max_retries}: {$path} ({$wait}秒待機)" );
+                    $this->logger->debug( "リトライ {$retry}/{$max_retries}: {$path} ({$wait}秒待機)" );
                     sleep( $wait );
                 }
 
@@ -913,7 +915,7 @@ class SGE_GitHub_API {
             }
 
             if ( ! $success ) {
-                $this->logger->add_log( "Blob作成エラー: {$path} - " . $last_error->get_error_message() . " (全リトライ失敗)", true );
+                $this->logger->error( "Blob作成エラー: {$path} - " . $last_error->get_error_message() . " (全リトライ失敗)" );
                 return $last_error;
             }
         }
@@ -934,19 +936,19 @@ class SGE_GitHub_API {
 
         if ( is_wp_error( $response ) ) {
             // ツリー取得に失敗した場合は全ファイルを返す（安全側）
-            $this->logger->add_log( 'ツリー取得失敗、全ファイルをプッシュします: ' . $response->get_error_message() );
+            $this->logger->debug( 'ツリー取得失敗、全ファイルをプッシュします: ' . $response->get_error_message() );
             return $files;
         }
 
         $status_code = wp_remote_retrieve_response_code( $response );
         if ( $status_code !== 200 ) {
-            $this->logger->add_log( "ツリー取得失敗 (Status: {$status_code})、全ファイルをプッシュします" );
+            $this->logger->debug( "ツリー取得失敗 (Status: {$status_code})、全ファイルをプッシュします" );
             return $files;
         }
 
         $tree_data = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( ! isset( $tree_data['tree'] ) ) {
-            $this->logger->add_log( 'ツリーデータが不正、全ファイルをプッシュします' );
+            $this->logger->debug( 'ツリーデータが不正、全ファイルをプッシュします' );
             return $files;
         }
 
@@ -975,7 +977,7 @@ class SGE_GitHub_API {
         $changed_count = count( $changed_files );
         $unchanged_count = $total_files - $changed_count;
 
-        $this->logger->add_log( "差分検出: {$changed_count}個が変更、{$unchanged_count}個が未変更（全{$total_files}個）" );
+        $this->logger->debug( "差分検出: {$changed_count}個が変更、{$unchanged_count}個が未変更（全{$total_files}個）" );
 
         return $changed_files;
     }
@@ -1034,7 +1036,10 @@ class SGE_GitHub_API {
             $relative_path = str_replace( '\\', '/', $relative_path );
             $full_path = trailingslashit( $base_dir ) . $relative_path;
 
-            $content = @file_get_contents( $full_path );
+            if ( ! is_readable( $full_path ) ) {
+                continue; // ファイル読み込み不可時はスキップ
+            }
+            $content = file_get_contents( $full_path );
             if ( $content === false ) {
                 continue; // ファイル読み込み失敗時はスキップ
             }
@@ -1053,7 +1058,7 @@ class SGE_GitHub_API {
         $changed_count = count( $changed_file_paths );
         $unchanged_count = $total_files - $changed_count;
 
-        $this->logger->add_log( "差分検出: {$changed_count}個が変更、{$unchanged_count}個が未変更（全{$total_files}個）" );
+        $this->logger->debug( "差分検出: {$changed_count}個が変更、{$unchanged_count}個が未変更（全{$total_files}個）" );
 
         return $changed_file_paths;
     }
@@ -1087,15 +1092,15 @@ class SGE_GitHub_API {
             $error_message = isset( $response_body['message'] ) ? $response_body['message'] : 'ツリーの作成に失敗しました';
 
             // 詳細なエラー情報をログに記録
-            $this->logger->add_log( 'GitHub API エラー (create tree): ' . $error_message . ' (Status: ' . $status_code . ')', true );
+            $this->logger->error( 'GitHub API エラー (create tree): ' . $error_message . ' (Status: ' . $status_code . ')' );
 
             // エラーの詳細があれば記録
             if ( isset( $response_body['errors'] ) ) {
-                $this->logger->add_log( 'エラー詳細: ' . wp_json_encode( $response_body['errors'] ), true );
+                $this->logger->error( 'エラー詳細: ' . wp_json_encode( $response_body['errors'] ) );
             }
 
             // ツリーアイテム数を記録
-            $this->logger->add_log( 'ツリーアイテム数: ' . count( $tree_items ), true );
+            $this->logger->error( 'ツリーアイテム数: ' . count( $tree_items ) );
 
             return new WP_Error( 'create_tree_failed', $error_message );
         }
@@ -1158,7 +1163,7 @@ class SGE_GitHub_API {
         if ( $status_code !== 201 ) {
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $body['message'] ) ? $body['message'] : 'ブランチ参照の作成に失敗しました';
-            $this->logger->add_log( 'GitHub API エラー (create ref): ' . $error_message . ' (Status: ' . $status_code . ')', true );
+            $this->logger->error( 'GitHub API エラー (create ref): ' . $error_message . ' (Status: ' . $status_code . ')' );
             return new WP_Error( 'create_ref_failed', $error_message );
         }
 
@@ -1189,11 +1194,11 @@ class SGE_GitHub_API {
             // 詳細なエラー情報をログに記録
             $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
             $error_message = isset( $response_body['message'] ) ? $response_body['message'] : 'ブランチ参照の更新に失敗しました';
-            $this->logger->add_log( "GitHub API エラー (update ref): {$error_message} (Status: {$status_code})", true );
+            $this->logger->error( "GitHub API エラー (update ref): {$error_message} (Status: {$status_code})" );
 
             // レスポンス詳細をログに記録
             if ( isset( $response_body['documentation_url'] ) ) {
-                $this->logger->add_log( 'ドキュメント: ' . $response_body['documentation_url'], true );
+                $this->logger->error( 'ドキュメント: ' . $response_body['documentation_url'] );
             }
 
             return new WP_Error( 'update_ref_failed', $error_message );

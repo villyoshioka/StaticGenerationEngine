@@ -170,9 +170,26 @@ class SGE_Admin {
             $logger->clear_progress();
         }
 
+        // デバッグモードのURLパラメータ処理（サニタイズ後に厳密比較）
+        if ( isset( $_GET['debugmode'] ) ) {
+            $debug_param = sanitize_text_field( wp_unslash( $_GET['debugmode'] ) );
+            if ( $debug_param === 'on' ) {
+                $logger->enable_debug_mode();
+            } elseif ( $debug_param === 'off' ) {
+                $logger->disable_debug_mode();
+            }
+        }
+        $is_debug_mode = $logger->is_debug_mode();
+
         ?>
         <div class="wrap sge-admin-wrap">
             <h1>静的化の実行</h1>
+
+            <?php if ( $is_debug_mode ) : ?>
+            <div class="notice notice-warning">
+                <p><strong>デバッグモード</strong> - 詳細なログが出力されます。無効にするには <code>&debugmode=off</code> を追加してください。</p>
+            </div>
+            <?php endif; ?>
 
             <div class="sge-dynamic-sections">
                 <div class="sge-execute-section">
@@ -215,7 +232,7 @@ class SGE_Admin {
             </div>
 
             <div class="sge-version-info">
-                Static Generation Engine v<?php echo esc_html( SGE_VERSION ); ?>
+                Static Generation Engine <a href="https://github.com/villyoshioka/StaticGenerationEngine/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
             </div>
         </div>
         <?php
@@ -240,9 +257,26 @@ class SGE_Admin {
         $logger = SGE_Logger::get_instance();
         $is_running = $logger->is_running();
 
+        // デバッグモードのURLパラメータ処理（サニタイズ後に厳密比較）
+        if ( isset( $_GET['debugmode'] ) ) {
+            $debug_param = sanitize_text_field( wp_unslash( $_GET['debugmode'] ) );
+            if ( $debug_param === 'on' ) {
+                $logger->enable_debug_mode();
+            } elseif ( $debug_param === 'off' ) {
+                $logger->disable_debug_mode();
+            }
+        }
+        $is_debug_mode = $logger->is_debug_mode();
+
         ?>
         <div class="wrap sge-admin-wrap">
             <h1>設定</h1>
+
+            <?php if ( $is_debug_mode ) : ?>
+            <div class="notice notice-warning">
+                <p><strong>デバッグモード</strong> - 詳細なログが出力されます。無効にするには <code>&debugmode=off</code> を追加してください。</p>
+            </div>
+            <?php endif; ?>
 
             <form id="sge-settings-form">
                 <?php wp_nonce_field( 'sge_save_settings', 'sge_settings_nonce' ); ?>
@@ -368,6 +402,99 @@ class SGE_Admin {
                         </div>
                     </div>
 
+                    <div class="sge-form-group">
+                        <label>
+                            <input type="checkbox" id="sge-cloudflare-enabled" name="cloudflare_enabled" value="1" <?php checked( ! empty( $settings['cloudflare_enabled'] ) ); ?>>
+                            Cloudflare Workersに出力
+                        </label>
+                    </div>
+
+                    <div id="sge-cloudflare-settings" class="sge-subsection" <?php echo empty( $settings['cloudflare_enabled'] ) ? 'style="display:none;"' : ''; ?>>
+                        <div class="sge-form-group">
+                            <label for="sge-cloudflare-api-token">Cloudflare API Token <span class="required">*</span></label>
+                            <?php
+                            $has_cf_token = ! empty( $settings['cloudflare_api_token'] );
+                            $cf_placeholder = $has_cf_token ? '設定済み（変更する場合は新しいトークンを入力）' : 'APIトークンを入力してください';
+                            ?>
+                            <input type="password" id="sge-cloudflare-api-token" name="cloudflare_api_token" class="regular-text" value="" placeholder="<?php echo esc_attr( $cf_placeholder ); ?>">
+                            <?php if ( $has_cf_token ) : ?>
+                                <span class="sge-token-status sge-token-set">✓ トークン設定済み</span>
+                            <?php endif; ?>
+                            <p class="description">必要権限: Account > Workers Scripts > Edit</p>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label for="sge-cloudflare-account-id">Account ID <span class="required">*</span></label>
+                            <input type="text" id="sge-cloudflare-account-id" name="cloudflare_account_id" class="regular-text" value="<?php echo esc_attr( $settings['cloudflare_account_id'] ?? '' ); ?>" placeholder="例: 1234567890abcdef1234567890abcdef">
+                            <p class="description">Cloudflareダッシュボード > Workers & Pages > 右側のサイドバーで確認できます</p>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label for="sge-cloudflare-script-name">Worker名 <span class="required">*</span></label>
+                            <input type="text" id="sge-cloudflare-script-name" name="cloudflare_script_name" class="regular-text" value="<?php echo esc_attr( $settings['cloudflare_script_name'] ?? '' ); ?>" placeholder="例: my-static-site">
+                            <p class="description">デプロイ先のWorker名（存在しない場合は自動作成されます）</p>
+                        </div>
+
+                    </div>
+
+                    <div class="sge-form-group">
+                        <label>
+                            <input type="checkbox" id="sge-gitlab-enabled" name="gitlab_enabled" value="1" <?php checked( ! empty( $settings['gitlab_enabled'] ) ); ?>>
+                            GitLabに出力
+                        </label>
+                    </div>
+
+                    <div id="sge-gitlab-settings" class="sge-subsection" <?php echo empty( $settings['gitlab_enabled'] ) ? 'style="display:none;"' : ''; ?>>
+                        <div class="sge-form-group">
+                            <label for="sge-gitlab-token">GitLab Personal Access Token <span class="required">*</span></label>
+                            <?php
+                            $has_gl_token = ! empty( $settings['gitlab_token'] );
+                            $gl_placeholder = $has_gl_token ? '設定済み（変更する場合は新しいトークンを入力）' : 'トークンを入力してください';
+                            ?>
+                            <input type="password" id="sge-gitlab-token" name="gitlab_token" class="regular-text" value="" placeholder="<?php echo esc_attr( $gl_placeholder ); ?>">
+                            <?php if ( $has_gl_token ) : ?>
+                                <span class="sge-token-status sge-token-set">✓ トークン設定済み</span>
+                            <?php endif; ?>
+                            <p class="description">必要権限: api（フルアクセス）または write_repository<br>※ wp-config.phpの認証用定数変更時は再入力が必要です</p>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label for="sge-gitlab-project">プロジェクトパス <span class="required">*</span></label>
+                            <input type="text" id="sge-gitlab-project" name="gitlab_project" class="regular-text" value="<?php echo esc_attr( $settings['gitlab_project'] ?? '' ); ?>" placeholder="username/project">
+                            <p class="description">形式: username/project または group/subgroup/project</p>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label>ブランチ設定</label>
+                            <div>
+                                <label>
+                                    <input type="radio" name="gitlab_branch_mode" value="existing" <?php checked( $settings['gitlab_branch_mode'] ?? 'existing', 'existing' ); ?>>
+                                    既存ブランチを使用
+                                </label>
+                                <input type="text" id="sge-gitlab-existing-branch" name="gitlab_existing_branch" class="regular-text" value="<?php echo esc_attr( $settings['gitlab_existing_branch'] ?? '' ); ?>" placeholder="main" <?php echo ( $settings['gitlab_branch_mode'] ?? 'existing' ) !== 'existing' ? 'disabled' : ''; ?>>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <label>
+                                    <input type="radio" name="gitlab_branch_mode" value="new" <?php checked( $settings['gitlab_branch_mode'] ?? 'existing', 'new' ); ?>>
+                                    新規ブランチを作成
+                                </label>
+                                <div style="margin-left: 20px;">
+                                    <label>分岐元ブランチ名</label>
+                                    <input type="text" id="sge-gitlab-base-branch" name="gitlab_base_branch" class="regular-text" value="<?php echo esc_attr( $settings['gitlab_base_branch'] ?? '' ); ?>" placeholder="main" <?php echo ( $settings['gitlab_branch_mode'] ?? 'existing' ) !== 'new' ? 'disabled' : ''; ?>>
+                                    <br>
+                                    <label>新規ブランチ名</label>
+                                    <input type="text" id="sge-gitlab-new-branch" name="gitlab_new_branch" class="regular-text" value="<?php echo esc_attr( $settings['gitlab_new_branch'] ?? '' ); ?>" placeholder="static-site" <?php echo ( $settings['gitlab_branch_mode'] ?? 'existing' ) !== 'new' ? 'disabled' : ''; ?>>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label for="sge-gitlab-api-url">GitLab API URL</label>
+                            <input type="text" id="sge-gitlab-api-url" name="gitlab_api_url" class="regular-text" value="<?php echo esc_attr( $settings['gitlab_api_url'] ?? 'https://gitlab.com/api/v4' ); ?>" placeholder="https://gitlab.com/api/v4">
+                            <p class="description">セルフホストのGitLabを使用する場合は変更してください<br>例: https://gitlab.example.com/api/v4</p>
+                        </div>
+                    </div>
+
                     <h3>ファイル設定</h3>
 
                     <div class="sge-form-group">
@@ -487,14 +614,6 @@ class SGE_Admin {
                         <p class="description">変更がないページはキャッシュから取得してスキップします</p>
                     </div>
 
-                    <div class="sge-form-group">
-                        <label>
-                            <input type="checkbox" name="use_parallel_crawling" value="1" <?php checked( ! empty( $settings['use_parallel_crawling'] ) ); ?>>
-                            並列クローリングを有効化
-                        </label>
-                        <p class="description">複数のURLを同時に処理して高速化します（最大5倍速）</p>
-                    </div>
-
                     <div class="sge-form-actions">
                         <button type="submit" class="button button-primary" id="sge-save-settings" <?php echo $is_running ? 'disabled' : ''; ?>>設定を保存</button>
                         <button type="button" class="button" id="sge-reset-settings" <?php echo $is_running ? 'disabled' : ''; ?>>リセット</button>
@@ -508,7 +627,7 @@ class SGE_Admin {
                 </form>
 
                 <div class="sge-version-info">
-                    Static Generation Engine v<?php echo esc_html( SGE_VERSION ); ?>
+                    Static Generation Engine <a href="https://github.com/villyoshioka/StaticGenerationEngine/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
                 </div>
             </div>
         </div>
@@ -719,7 +838,6 @@ class SGE_Admin {
             'zip_enabled' => 'boolean',
             'auto_generate' => 'boolean',
             'cache_enabled' => 'boolean',
-            'use_parallel_crawling' => 'boolean',
             'enable_tag_archive' => 'boolean',
             'enable_date_archive' => 'boolean',
             'enable_author_archive' => 'boolean',
@@ -727,6 +845,8 @@ class SGE_Admin {
             'enable_sitemap' => 'boolean',
             'enable_robots_txt' => 'boolean',
             'enable_rss' => 'boolean',
+            'cloudflare_enabled' => 'boolean',
+            'gitlab_enabled' => 'boolean',
             // Text fields
             'github_token' => 'text',
             'github_repo' => 'text',
@@ -740,6 +860,16 @@ class SGE_Admin {
             'zip_output_path' => 'text',
             'url_mode' => 'text',
             'commit_message' => 'text',
+            'cloudflare_api_token' => 'text',
+            'cloudflare_account_id' => 'text',
+            'cloudflare_script_name' => 'text',
+            'gitlab_token' => 'text',
+            'gitlab_project' => 'text',
+            'gitlab_branch_mode' => 'text',
+            'gitlab_existing_branch' => 'text',
+            'gitlab_new_branch' => 'text',
+            'gitlab_base_branch' => 'text',
+            'gitlab_api_url' => 'text',
             // Textarea fields
             'include_paths' => 'textarea',
             'exclude_patterns' => 'textarea',
@@ -772,6 +902,12 @@ class SGE_Admin {
         }
         if ( empty( $settings['timeout'] ) || $settings['timeout'] < 60 ) {
             $settings['timeout'] = 600;
+        }
+        if ( empty( $settings['gitlab_branch_mode'] ) ) {
+            $settings['gitlab_branch_mode'] = 'existing';
+        }
+        if ( empty( $settings['gitlab_api_url'] ) ) {
+            $settings['gitlab_api_url'] = 'https://gitlab.com/api/v4';
         }
 
         // 設定を保存
@@ -1203,16 +1339,22 @@ class SGE_Admin {
     /**
      * クライアントIPアドレスを取得
      *
+     * セキュリティ注意: HTTP_CLIENT_IP や HTTP_X_FORWARDED_FOR はスプーフィング可能。
+     * REMOTE_ADDR のみを信頼し、プロキシ環境では信頼できるプロキシ設定が必要。
+     *
      * @return string IPアドレス
      */
     private function get_client_ip() {
+        // REMOTE_ADDR のみを信頼（スプーフィング対策）
+        // プロキシ環境の場合は、サーバー側で信頼できるプロキシからのヘッダーのみを
+        // REMOTE_ADDR に設定するよう構成する必要がある
         $ip = '';
-        if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-            $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
-        } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-            $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
-        } elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+        if ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
             $ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+            // 有効なIPアドレス形式かチェック
+            if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+                $ip = '';
+            }
         }
         return $ip;
     }
@@ -1259,8 +1401,8 @@ class SGE_Admin {
                 return $error;
             }
 
-            // LIMIT付きクエリを作成
-            $batch_query = $query . ' LIMIT ' . $batch_size;
+            // LIMIT付きクエリを作成（intvalで確実に整数化）
+            $batch_query = $query . ' LIMIT ' . intval( $batch_size );
             $deleted = $wpdb->query( $wpdb->prepare( $batch_query, $params ) );
 
             if ( $deleted === false || $deleted === 0 ) {

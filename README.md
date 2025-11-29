@@ -5,7 +5,7 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/Version-1.1.0-green.svg)](https://github.com/villyoshioka/static-generation-engine/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/villyoshioka/StaticGenerationEngine/releases)
 
 > **注意**: **このプラグインについて、コードは公開していますが、サポートは行っていません。使用は自己責任でお願いします。**
 
@@ -13,23 +13,25 @@
 
 ## これは何？
 
-WordPress で作ったサイトを、普通の HTML ファイルに変換するプラグインです。
+WordPress で作ったサイトを、静的な HTML や CSS などのファイルに変換するプラグインです。
 
 ### 主な機能
 
 - WordPress のページや記事を HTML ファイルに変換
-- 画像や CSS なども一緒に保存
-- 変更部分だけ更新する差分検出機能
+- 画像や CSS なども一緒に出力
+- 変更部分だけ更新する差分検出機能（ローカル Git / GitHub / GitLab）
 - 自動静的化機能
 
-### 保存先
+### 出力先
 
-以下の方法から選べます：
+以下から選べます：
 
 - **GitHub**: GitHub API で直接プッシュ
-- **ローカル Git**: Git リポジトリとして保存
-- **ZIP ファイル**: ZIP ファイルとして保存
-- **ローカルディレクトリ**: 指定したフォルダに保存
+- **GitLab**: GitLab API で直接プッシュ
+- **Cloudflare Workers**: Cloudflare Workers にデプロイ
+- **ローカル Git**: Git リポジトリとして出力
+- **ZIP ファイル**: ZIP ファイルとして出力
+- **ローカルディレクトリ**: 指定したフォルダに出力
 
 ---
 
@@ -46,9 +48,13 @@ WordPress で作ったサイトを、普通の HTML ファイルに変換する�
 
 プラグインを有効化すると、WordPress 管理画面に「Static Generation Engine」メニューが追加されます。
 
-1. **設定画面**で出力先を選択（GitHub / ローカル Git / ZIP / ディレクトリ）
-2. **実行画面**で「静的化を実行」ボタンをクリック
-3. 進捗を確認しながら完了を待つ。結構時間かかりますので、その間にお茶でもどうぞ。
+1. **設定画面**で出力先を選択します。（GitHub / GitLab / Cloudflare Workers / ローカル Git / ZIP / ディレクトリ）
+2. **実行画面**で「静的化を実行」ボタンをクリックします。
+3. 進捗を確認しながら完了を待ちます。結構時間かかる場合がありますので、その間にお茶でもどうぞ。
+
+### デバッグモード
+
+詳細なログを確認したい場合は、URL に `&debugmode=on` を追加してデバッグモードを有効化できます。無効にするには `&debugmode=off` を追加してください。
 
 ---
 
@@ -75,6 +81,6 @@ WordPress で作ったサイトを、普通の HTML ファイルに変換する�
 
 このプラグインは、Claude（Anthropic 社の AI）を用いて実装されました。設計・仕様策定・品質管理は開発者が行っています。
 
-詳細は [AI利用ポリシー](AI_POLICY.md) をご覧ください。
+詳細は [AI 利用ポリシー](AI_POLICY.md) をご覧ください。
 
 **開発**: Vill Yoshioka ([@villyoshioka](https://github.com/villyoshioka))
