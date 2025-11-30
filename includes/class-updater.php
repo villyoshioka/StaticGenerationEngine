@@ -219,7 +219,21 @@ class SGE_Updater {
      * @return string|false ダウンロードURL
      */
     private function get_download_url( $release ) {
-        // zipball_url を使用（GitHub が自動生成するソースアーカイブ）
+        // まずリリースアセットからZIPファイルを探す（正しいフォルダ構造）
+        if ( ! empty( $release['assets'] ) && is_array( $release['assets'] ) ) {
+            foreach ( $release['assets'] as $asset ) {
+                if ( isset( $asset['name'] ) && preg_match( '/\.zip$/i', $asset['name'] ) ) {
+                    if ( isset( $asset['browser_download_url'] ) ) {
+                        // SSRF対策: URLがGitHubのドメインであることを検証
+                        if ( $this->is_valid_github_url( $asset['browser_download_url'] ) ) {
+                            return $asset['browser_download_url'];
+                        }
+                    }
+                }
+            }
+        }
+
+        // アセットがない場合はzipball_urlにフォールバック
         if ( ! empty( $release['zipball_url'] ) ) {
             // SSRF対策: URLがGitHubのドメインであることを検証
             if ( ! $this->is_valid_github_url( $release['zipball_url'] ) ) {
@@ -258,6 +272,7 @@ class SGE_Updater {
             'api.github.com',
             'github.com',
             'codeload.github.com',
+            'objects.githubusercontent.com', // リリースアセットのダウンロード先
         );
 
         if ( ! in_array( $parsed['host'], $allowed_hosts, true ) ) {
@@ -267,6 +282,11 @@ class SGE_Updater {
         // パスに期待するリポジトリ情報が含まれているか確認
         if ( ! isset( $parsed['path'] ) ) {
             return false;
+        }
+
+        // objects.githubusercontent.com はリダイレクト先なのでパス検証をスキップ
+        if ( $parsed['host'] === 'objects.githubusercontent.com' ) {
+            return true;
         }
 
         // リポジトリのowner/repoがパスに含まれていることを確認
