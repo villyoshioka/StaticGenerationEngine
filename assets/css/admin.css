@@ -96,81 +96,96 @@
 }
 
 /* チェックボックス・ラジオボタン - ブロックエディタ風 */
-.sge-form-group input[type="checkbox"],
-.sge-form-group input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    margin: 0 8px 0 0;
+.sge-admin-wrap .sge-form-group input[type="checkbox"],
+.sge-admin-wrap .sge-form-group input[type="radio"] {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    margin: 0 8px 0 0 !important;
     vertical-align: middle;
-    border: 2px solid #1e1e1e;
-    background: #fff;
+    border: 2px solid #1e1e1e !important;
+    background: #fff !important;
     cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
     transition: all 0.1s ease;
     position: relative;
     flex-shrink: 0;
+    box-shadow: none !important;
 }
 
-.sge-form-group input[type="checkbox"] {
-    border-radius: 2px;
+.sge-admin-wrap .sge-form-group input[type="checkbox"] {
+    border-radius: 2px !important;
 }
 
-.sge-form-group input[type="radio"] {
-    border-radius: 50%;
+.sge-admin-wrap .sge-form-group input[type="radio"] {
+    border-radius: 50% !important;
 }
 
-.sge-form-group input[type="checkbox"]:hover,
-.sge-form-group input[type="radio"]:hover {
-    border-color: #757575;
+/* WordPressデフォルトの::before擬似要素を無効化 */
+.sge-admin-wrap .sge-form-group input[type="checkbox"]::before,
+.sge-admin-wrap .sge-form-group input[type="radio"]::before {
+    content: none !important;
+    display: none !important;
 }
 
-.sge-form-group input[type="checkbox"]:focus,
-.sge-form-group input[type="radio"]:focus {
-    outline: none;
-    border-color: var(--wp-admin-theme-color, #3858e9);
-    box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--wp-admin-theme-color, #3858e9);
+.sge-admin-wrap .sge-form-group input[type="checkbox"]:hover,
+.sge-admin-wrap .sge-form-group input[type="radio"]:hover {
+    border-color: #757575 !important;
 }
 
-.sge-form-group input[type="checkbox"]:checked {
-    background: #1e1e1e;
-    border-color: #1e1e1e;
+.sge-admin-wrap .sge-form-group input[type="checkbox"]:focus,
+.sge-admin-wrap .sge-form-group input[type="radio"]:focus {
+    outline: none !important;
+    border-color: var(--wp-admin-theme-color, #3858e9) !important;
+    box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--wp-admin-theme-color, #3858e9) !important;
 }
 
-.sge-form-group input[type="checkbox"]:checked::after {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 1px;
-    width: 4px;
-    height: 8px;
-    border: solid #fff;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
+.sge-admin-wrap .sge-form-group input[type="checkbox"]:checked {
+    background: #1e1e1e !important;
+    border-color: #1e1e1e !important;
 }
 
-.sge-form-group input[type="radio"]:checked {
-    background: #1e1e1e;
-    border-color: #1e1e1e;
+.sge-admin-wrap .sge-form-group input[type="checkbox"]:checked::after {
+    content: '' !important;
+    display: block !important;
+    position: absolute !important;
+    left: 4px !important;
+    top: 1px !important;
+    width: 4px !important;
+    height: 8px !important;
+    border: solid #fff !important;
+    border-width: 0 2px 2px 0 !important;
+    transform: rotate(45deg) !important;
+    background: transparent !important;
+    border-radius: 0 !important;
 }
 
-.sge-form-group input[type="radio"]:checked::after {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 4px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #fff;
+.sge-admin-wrap .sge-form-group input[type="radio"]:checked {
+    background: #1e1e1e !important;
+    border-color: #1e1e1e !important;
 }
 
-.sge-form-group input[type="checkbox"]:disabled,
-.sge-form-group input[type="radio"]:disabled {
+.sge-admin-wrap .sge-form-group input[type="radio"]:checked::after {
+    content: '' !important;
+    display: block !important;
+    position: absolute !important;
+    left: 4px !important;
+    top: 4px !important;
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background: #fff !important;
+}
+
+.sge-admin-wrap .sge-form-group input[type="checkbox"]:disabled,
+.sge-admin-wrap .sge-form-group input[type="radio"]:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    background: #f6f7f7;
-    border-color: #8d96a0;
+    background: #f6f7f7 !important;
+    border-color: #8d96a0 !important;
 }
 
 .sge-subsection {

@@ -59,6 +59,31 @@ class SGE_Updater {
         add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_update' ) );
         add_filter( 'plugins_api', array( $this, 'plugin_info' ), 10, 3 );
         add_filter( 'upgrader_source_selection', array( $this, 'fix_source_dir' ), 10, 4 );
+        add_action( 'upgrader_process_complete', array( $this, 'on_upgrade_complete' ), 10, 2 );
+    }
+
+    /**
+     * プラグイン更新完了時にキャッシュをクリア
+     *
+     * @param WP_Upgrader $upgrader アップグレーダーインスタンス
+     * @param array       $options  更新オプション
+     */
+    public function on_upgrade_complete( $upgrader, $options ) {
+        // プラグイン更新の場合のみ処理
+        if ( $options['action'] !== 'update' || $options['type'] !== 'plugin' ) {
+            return;
+        }
+
+        // このプラグインが更新対象に含まれているかチェック
+        $plugins = isset( $options['plugins'] ) ? $options['plugins'] : array();
+        if ( ! is_array( $plugins ) ) {
+            $plugins = array( $plugins );
+        }
+
+        if ( in_array( $this->plugin_basename, $plugins, true ) ) {
+            // キャッシュをクリア
+            delete_transient( $this->cache_key );
+        }
     }
 
     /**
@@ -72,6 +97,11 @@ class SGE_Updater {
             return $transient;
         }
 
+        // WordPressが認識している実際のインストール済みバージョンを使用
+        $current_version = isset( $transient->checked[ $this->plugin_basename ] )
+            ? $transient->checked[ $this->plugin_basename ]
+            : $this->current_version;
+
         $release = $this->get_latest_release();
 
         if ( ! $release ) {
@@ -80,7 +110,7 @@ class SGE_Updater {
 
         $latest_version = ltrim( $release['tag_name'], 'v' );
 
-        if ( version_compare( $this->current_version, $latest_version, '<' ) ) {
+        if ( version_compare( $current_version, $latest_version, '<' ) ) {
             $download_url = $this->get_download_url( $release );
 
             if ( $download_url ) {
