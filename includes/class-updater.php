@@ -318,6 +318,19 @@ class SGE_Updater {
             return $source;
         }
 
+        // 既に正しいディレクトリ名の場合はそのまま返す（リリースアセットからのインストール）
+        $source_dirname = basename( untrailingslashit( $source ) );
+        if ( $source_dirname === $this->plugin_slug ) {
+            return $source;
+        }
+
+        // GitHubのzipball形式（owner-repo-hash）かどうかを確認
+        $github_pattern = '/^' . preg_quote( $this->github_owner, '/' ) . '-' . preg_quote( $this->github_repo, '/' ) . '-[a-f0-9]+$/i';
+        if ( ! preg_match( $github_pattern, $source_dirname ) ) {
+            // 予期しない形式の場合はそのまま返す
+            return $source;
+        }
+
         // パストラバーサル対策: ソースパスの検証
         $real_source = realpath( $source );
         $real_remote = realpath( $remote_source );
@@ -339,15 +352,17 @@ class SGE_Updater {
             return new WP_Error( 'null_byte', '無効な文字が含まれています。' );
         }
 
-        // ディレクトリ名を変更
-        if ( $source !== $correct_dir ) {
-            if ( $wp_filesystem->move( $source, $correct_dir ) ) {
-                return $correct_dir;
-            }
-            return new WP_Error( 'rename_failed', 'プラグインディレクトリ名の変更に失敗しました。' );
+        // 既に正しい名前のディレクトリが存在する場合は削除
+        if ( $wp_filesystem->exists( $correct_dir ) ) {
+            $wp_filesystem->delete( $correct_dir, true );
         }
 
-        return $source;
+        // ディレクトリ名を変更
+        if ( $wp_filesystem->move( $source, $correct_dir ) ) {
+            return trailingslashit( $correct_dir );
+        }
+
+        return new WP_Error( 'rename_failed', 'プラグインディレクトリ名の変更に失敗しました。' );
     }
 
     /**
