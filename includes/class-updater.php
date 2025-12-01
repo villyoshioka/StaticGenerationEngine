@@ -81,9 +81,16 @@ class SGE_Updater {
         }
 
         if ( in_array( $this->plugin_basename, $plugins, true ) ) {
-            // キャッシュをクリア（通常キャッシュとベータ用キャッシュ両方）
+            // GitHubリリースキャッシュをクリア（通常キャッシュとベータ用キャッシュ両方）
             delete_transient( $this->cache_key );
             delete_transient( $this->cache_key . '_beta' );
+
+            // WordPressの更新トランジェントからこのプラグインを削除
+            $update_plugins = get_site_transient( 'update_plugins' );
+            if ( $update_plugins && isset( $update_plugins->response[ $this->plugin_basename ] ) ) {
+                unset( $update_plugins->response[ $this->plugin_basename ] );
+                set_site_transient( 'update_plugins', $update_plugins );
+            }
         }
     }
 
@@ -125,6 +132,21 @@ class SGE_Updater {
                     'banners'     => array(),
                     'tested'      => '',
                     'requires_php' => '7.4',
+                );
+            }
+        } else {
+            // 更新不要の場合、responseから削除してno_updateに移動
+            if ( isset( $transient->response[ $this->plugin_basename ] ) ) {
+                unset( $transient->response[ $this->plugin_basename ] );
+            }
+            // no_updateに登録（最新版であることを明示）
+            if ( ! isset( $transient->no_update[ $this->plugin_basename ] ) ) {
+                $transient->no_update[ $this->plugin_basename ] = (object) array(
+                    'slug'        => $this->plugin_slug,
+                    'plugin'      => $this->plugin_basename,
+                    'new_version' => $current_version,
+                    'url'         => '',
+                    'package'     => '',
                 );
             }
         }
