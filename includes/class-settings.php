@@ -49,7 +49,7 @@ class SGE_Settings {
      * @return bool 有効ならtrue
      */
     public function is_beta_mode_enabled() {
-        return get_transient( 'sge_beta_channel' ) === true;
+        return (bool) get_transient( 'sge_beta_channel' );
     }
 
     /**

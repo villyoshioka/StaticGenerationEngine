@@ -268,7 +268,7 @@ class SGE_Updater {
      * @return bool 有効ならtrue
      */
     private function is_beta_channel_enabled() {
-        return get_transient( 'sge_beta_channel' ) === true;
+        return (bool) get_transient( 'sge_beta_channel' );
     }
 
     /**
