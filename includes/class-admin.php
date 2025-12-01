@@ -183,6 +183,9 @@ class SGE_Admin {
         }
         $is_debug_mode = $logger->is_debug_mode();
 
+        // ベータモードの状態を取得
+        $is_beta_mode = $settings_manager->is_beta_mode_enabled();
+
         ?>
         <div class="wrap sge-admin-wrap">
             <h1>静的化の実行</h1>
@@ -190,6 +193,12 @@ class SGE_Admin {
             <?php if ( $is_debug_mode ) : ?>
             <div class="notice notice-warning">
                 <p><strong>デバッグモード</strong> - 詳細なログが出力されます。無効にするには <code>&debugmode=off</code> を追加してください。</p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ( $is_beta_mode ) : ?>
+            <div class="notice notice-info">
+                <p><strong>ベータモード</strong> - プレリリース版のアップデートが有効です。無効にするには <code>&sge_beta=off</code> を追加してください。</p>
             </div>
             <?php endif; ?>
 
@@ -270,6 +279,31 @@ class SGE_Admin {
         }
         $is_debug_mode = $logger->is_debug_mode();
 
+        // ベータモードのURLパラメータ処理
+        $beta_message = '';
+        if ( isset( $_GET['sge_beta'] ) ) {
+            $beta_param = sanitize_text_field( wp_unslash( $_GET['sge_beta'] ) );
+            if ( $beta_param === 'on' ) {
+                // パスワード認証が必要
+                if ( isset( $_POST['sge_beta_password'] ) && isset( $_POST['sge_beta_nonce'] ) ) {
+                    if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['sge_beta_nonce'] ) ), 'sge_beta_auth' ) ) {
+                        $password = sanitize_text_field( wp_unslash( $_POST['sge_beta_password'] ) );
+                        if ( $settings_manager->enable_beta_mode( $password ) ) {
+                            $beta_message = 'activated';
+                        } else {
+                            $beta_message = 'wrong_password';
+                        }
+                    }
+                } else {
+                    $beta_message = 'need_password';
+                }
+            } elseif ( $beta_param === 'off' ) {
+                $settings_manager->disable_beta_mode();
+                $beta_message = 'deactivated';
+            }
+        }
+        $is_beta_mode = $settings_manager->is_beta_mode_enabled();
+
         ?>
         <div class="wrap sge-admin-wrap">
             <h1>設定</h1>
@@ -277,6 +311,43 @@ class SGE_Admin {
             <?php if ( $is_debug_mode ) : ?>
             <div class="notice notice-warning">
                 <p><strong>デバッグモード</strong> - 詳細なログが出力されます。無効にするには <code>&debugmode=off</code> を追加してください。</p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ( $is_beta_mode ) : ?>
+            <div class="notice notice-info">
+                <p><strong>ベータモード</strong> - プレリリース版のアップデートが有効です。無効にするには <code>&sge_beta=off</code> を追加してください。</p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ( $beta_message === 'need_password' ) : ?>
+            <div class="notice notice-warning">
+                <p><strong>ベータモード認証</strong></p>
+                <form method="post" style="margin: 10px 0;">
+                    <?php wp_nonce_field( 'sge_beta_auth', 'sge_beta_nonce' ); ?>
+                    <input type="password" name="sge_beta_password" placeholder="パスワードを入力" style="width: 200px;" />
+                    <input type="submit" class="button" value="認証" />
+                </form>
+            </div>
+            <?php elseif ( $beta_message === 'wrong_password' ) : ?>
+            <div class="notice notice-error">
+                <p>パスワードが正しくありません。</p>
+            </div>
+            <div class="notice notice-warning">
+                <p><strong>ベータモード認証</strong></p>
+                <form method="post" style="margin: 10px 0;">
+                    <?php wp_nonce_field( 'sge_beta_auth', 'sge_beta_nonce' ); ?>
+                    <input type="password" name="sge_beta_password" placeholder="パスワードを入力" style="width: 200px;" />
+                    <input type="submit" class="button" value="認証" />
+                </form>
+            </div>
+            <?php elseif ( $beta_message === 'activated' ) : ?>
+            <div class="notice notice-success">
+                <p>ベータモードを有効化しました。</p>
+            </div>
+            <?php elseif ( $beta_message === 'deactivated' ) : ?>
+            <div class="notice notice-info">
+                <p>ベータモードを無効化しました。</p>
             </div>
             <?php endif; ?>
 

@@ -183,17 +183,32 @@ class SGE_Updater {
      * @return array|false リリース情報または失敗時false
      */
     private function get_latest_release() {
+        // ベータチャンネルが有効かどうかを確認
+        $include_prerelease = $this->is_beta_channel_enabled();
+
+        // キャッシュキーを分ける（ベータとノーマル）
+        $cache_key = $include_prerelease ? $this->cache_key . '_beta' : $this->cache_key;
+
         // キャッシュをチェック
-        $cached = get_transient( $this->cache_key );
+        $cached = get_transient( $cache_key );
         if ( $cached !== false ) {
             return $cached;
         }
 
-        $url = sprintf(
-            'https://api.github.com/repos/%s/%s/releases/latest',
-            $this->github_owner,
-            $this->github_repo
-        );
+        // ベータチャンネルの場合は全リリースを取得、通常は最新のみ
+        if ( $include_prerelease ) {
+            $url = sprintf(
+                'https://api.github.com/repos/%s/%s/releases',
+                $this->github_owner,
+                $this->github_repo
+            );
+        } else {
+            $url = sprintf(
+                'https://api.github.com/repos/%s/%s/releases/latest',
+                $this->github_owner,
+                $this->github_repo
+            );
+        }
 
         $response = wp_remote_get( $url, array(
             'timeout' => 10,
@@ -219,6 +234,11 @@ class SGE_Updater {
             return false;
         }
 
+        // ベータチャンネルの場合は配列から最新を選択
+        if ( $include_prerelease ) {
+            $body = $this->get_latest_from_releases( $body );
+        }
+
         // 必須フィールドの検証
         if ( empty( $body ) || ! is_array( $body ) ) {
             return false;
@@ -237,9 +257,40 @@ class SGE_Updater {
         }
 
         // キャッシュに保存
-        set_transient( $this->cache_key, $body, $this->cache_expiry );
+        set_transient( $cache_key, $body, $this->cache_expiry );
 
         return $body;
+    }
+
+    /**
+     * ベータチャンネルが有効かどうかを確認
+     *
+     * @return bool 有効ならtrue
+     */
+    private function is_beta_channel_enabled() {
+        return get_transient( 'sge_beta_channel' ) === true;
+    }
+
+    /**
+     * リリース一覧から最新のリリースを取得（プレリリース含む）
+     *
+     * @param array $releases リリース一覧
+     * @return array|false 最新のリリース情報
+     */
+    private function get_latest_from_releases( $releases ) {
+        if ( empty( $releases ) || ! is_array( $releases ) ) {
+            return false;
+        }
+
+        // リリースは公開日順（降順）で返されるので、最初の要素が最新
+        // プレリリースも含めて最初のものを返す
+        foreach ( $releases as $release ) {
+            if ( is_array( $release ) && isset( $release['tag_name'] ) ) {
+                return $release;
+            }
+        }
+
+        return false;
     }
 
     /**
