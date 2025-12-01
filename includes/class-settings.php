@@ -20,6 +20,12 @@ class SGE_Settings {
     private $encryption_key;
 
     /**
+     * ベータモードパスワードハッシュ（SHA-256）
+     * 平文パスワードはソースコードに含めない
+     */
+    private $beta_password_hash = '5feb2e34960dfb4d64c2be90cf71d366ee7732042e7f0cd56169a16f5bb6119d';
+
+    /**
      * シングルトンインスタンスを取得
      */
     public static function get_instance() {
@@ -35,6 +41,38 @@ class SGE_Settings {
     private function __construct() {
         // 暗号化キーを取得または生成
         $this->encryption_key = $this->get_or_create_encryption_key();
+    }
+
+    /**
+     * ベータモードが有効かどうかを確認
+     *
+     * @return bool 有効ならtrue
+     */
+    public function is_beta_mode_enabled() {
+        return get_transient( 'sge_beta_channel' ) === true;
+    }
+
+    /**
+     * ベータモードを有効化（パスワード検証付き）
+     *
+     * @param string $password 入力されたパスワード
+     * @return bool 認証成功ならtrue
+     */
+    public function enable_beta_mode( $password ) {
+        if ( hash_equals( $this->beta_password_hash, hash( 'sha256', $password ) ) ) {
+            set_transient( 'sge_beta_channel', true, DAY_IN_SECONDS );
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * ベータモードを無効化
+     */
+    public function disable_beta_mode() {
+        delete_transient( 'sge_beta_channel' );
+        // ベータ用キャッシュもクリア
+        delete_transient( 'sge_github_release_cache_beta' );
     }
 
     /**
