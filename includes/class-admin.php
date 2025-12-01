@@ -284,8 +284,11 @@ class SGE_Admin {
         if ( isset( $_GET['sge_beta'] ) ) {
             $beta_param = sanitize_text_field( wp_unslash( $_GET['sge_beta'] ) );
             if ( $beta_param === 'on' ) {
-                // パスワード認証が必要
-                if ( isset( $_POST['sge_beta_password'] ) && isset( $_POST['sge_beta_nonce'] ) ) {
+                // 既にベータモードが有効な場合はスキップ
+                if ( $settings_manager->is_beta_mode_enabled() ) {
+                    // 既に有効、何もしない
+                } elseif ( isset( $_POST['sge_beta_password'] ) && isset( $_POST['sge_beta_nonce'] ) ) {
+                    // パスワード認証処理
                     if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['sge_beta_nonce'] ) ), 'sge_beta_auth' ) ) {
                         $password = sanitize_text_field( wp_unslash( $_POST['sge_beta_password'] ) );
                         if ( $settings_manager->enable_beta_mode( $password ) ) {
