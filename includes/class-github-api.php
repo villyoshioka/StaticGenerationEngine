@@ -714,7 +714,7 @@ class SGE_GitHub_API {
                     'headers' => array(
                         'Authorization' => 'token ' . $this->token,
                         'Accept' => 'application/vnd.github.v3+json',
-                        'User-Agent' => 'Static-Generate-Engine/' . SGE_VERSION,
+                        'User-Agent' => 'Carry-Pod/' . SGE_VERSION,
                         'Content-Type' => 'application/json',
                     ),
                     'data' => wp_json_encode( array(
@@ -1224,7 +1224,7 @@ class SGE_GitHub_API {
             'headers' => array(
                 'Authorization' => 'token ' . $this->token,
                 'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => 'Static-Generate-Engine/' . SGE_VERSION,
+                'User-Agent' => 'Carry-Pod/' . SGE_VERSION,
             ),
             'timeout' => 300, // 大量のファイル処理に対応（5分）
         );

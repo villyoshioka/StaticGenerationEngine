@@ -30,6 +30,11 @@ class SGE_Generator {
     private $temp_dir;
 
     /**
+     * デバッグモード
+     */
+    private $debug_mode = false;
+
+    /**
      * URL→投稿IDマップ（高速化用）
      */
     private $url_to_post_id_map = array();
@@ -55,6 +60,9 @@ class SGE_Generator {
      */
     public function generate() {
         try {
+            // デバッグモード設定を読み込み
+            $this->debug_mode = ! empty( $_GET['debugmode'] ) && $_GET['debugmode'] === 'on';
+
             // PHP実行時間制限を無制限に設定（長時間処理対応）
             if ( function_exists( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
                 @set_time_limit( 0 );
@@ -62,6 +70,9 @@ class SGE_Generator {
 
             // 実行中フラグをセット
             set_transient( 'sge_manual_running', true, 3600 );
+
+            // エラー通知をクリア（新規実行開始時）
+            delete_option( 'sge_error_notification' );
 
             // タイマー開始とログ記録
             $this->logger->start_timer();
@@ -74,7 +85,7 @@ class SGE_Generator {
             }
 
             // 一時ディレクトリを作成
-            if ( ! mkdir( $this->temp_dir, 0755, true ) ) {
+            if ( ! mkdir( $this->temp_dir, 0700, true ) ) {
                 $this->logger->add_log( '一時ディレクトリの作成に失敗しました', true );
                 delete_transient( 'sge_manual_running' );
                 return;
@@ -313,6 +324,15 @@ class SGE_Generator {
                 $this->output_to_gitlab_api();
             }
 
+            // Netlify出力が有効な場合
+            if ( ! empty( $this->settings['netlify_enabled'] ) ) {
+                $output_step++;
+                $progress = 90 + (int) ( $output_step * $output_progress_per_step ) - (int) $output_progress_per_step;
+                $this->logger->add_log( 'Netlifyに出力中...' );
+                $this->logger->update_progress( $progress, $total_steps, 'Netlifyに出力中...' );
+                $this->output_to_netlify();
+            }
+
             // 一時ディレクトリを削除
             $this->remove_directory( $this->temp_dir );
 
@@ -329,6 +349,23 @@ class SGE_Generator {
             if ( is_dir( $this->temp_dir ) ) {
                 $this->remove_directory( $this->temp_dir );
             }
+
+            // エラーがある場合は通知を保存（DBから直接カウント）
+            $logs = get_option( 'sge_logs', array() );
+            $error_count = 0;
+            foreach ( $logs as $log ) {
+                if ( ! empty( $log['is_error'] ) ) {
+                    $error_count++;
+                }
+            }
+
+            if ( $error_count > 0 ) {
+                update_option( 'sge_error_notification', array(
+                    'count' => $error_count,
+                    'timestamp' => current_time( 'mysql' ),
+                ), false );
+            }
+
             // 必ず実行中フラグを削除
             delete_transient( 'sge_manual_running' );
         }
@@ -587,7 +624,7 @@ class SGE_Generator {
             'timeout' => isset( $this->settings['timeout'] ) ? $this->settings['timeout'] : 600,
             'sslverify' => ! $is_localhost,
             'headers' => array(
-                'User-Agent' => 'Static Generation Engine/1.0',
+                'User-Agent' => 'Carry Pod/1.0',
             ),
         ) );
 
@@ -814,20 +851,25 @@ class SGE_Generator {
             $html
         );
 
-        // HTML属性内のURLを変換（末尾スラッシュありを先に処理して正確に置換）
+        // HTML属性内のURLを変換
+        // 末尾スラッシュありの場合は '/' に置換
         $html = str_replace( $site_url_https_slash, '/', $html );
         $html = str_replace( $site_url_http_slash, '/', $html );
         $html = str_replace( $home_url_https_slash, '/', $html );
         $html = str_replace( $home_url_http_slash, '/', $html );
 
-        // 末尾スラッシュなしのURLを置換（パスの途中にマッチする場合用）
-        $html = str_replace( $site_url_https_no_slash, '', $html );
-        $html = str_replace( $site_url_http_no_slash, '', $html );
-        $html = str_replace( $home_url_https_no_slash, '', $html );
-        $html = str_replace( $home_url_http_no_slash, '', $html );
+        // 末尾スラッシュなしの場合も '/' に置換（空文字列ではなく）
+        // これにより https://example.com/path が /path に正しく変換される
+        $html = str_replace( $site_url_https_no_slash . '/', '/', $html );
+        $html = str_replace( $site_url_http_no_slash . '/', '/', $html );
+        $html = str_replace( $home_url_https_no_slash . '/', '/', $html );
+        $html = str_replace( $home_url_http_no_slash . '/', '/', $html );
 
-        // スラッシュが2つ続く場合は1つに（ただしhttp://やhttps://は除く）
-        $html = preg_replace( '#(?<!:)//+#', '/', $html );
+        // スラッシュが2つ続く場合は1つに（ただしhttp://やhttps://、JavaScriptコメント等は除く）
+        $result = preg_replace( '#(?<!:)(?<!["\'])//+(?![/#\s])#', '/', $html );
+        if ( $result !== null ) {
+            $html = $result;
+        }
 
         return $html;
     }
@@ -1613,6 +1655,147 @@ class SGE_Generator {
         }
 
         $this->logger->add_log( 'Cloudflare Workers出力完了: ' . $this->settings['cloudflare_script_name'] );
+    }
+
+    /**
+     * Netlify出力
+     */
+    private function output_to_netlify() {
+        // 一時ディレクトリの全ファイルパスを取得（絶対パス）
+        if ( ! is_dir( $this->temp_dir ) ) {
+            $this->logger->add_log( 'Netlify: 一時ディレクトリが見つかりません', true );
+            return;
+        }
+
+        $real_dir = realpath( $this->temp_dir );
+        if ( $real_dir === false ) {
+            $this->logger->add_log( 'Netlify: 一時ディレクトリのパスが不正です', true );
+            return;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $real_dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        $file_paths = array();
+        foreach ( $iterator as $file ) {
+            if ( $file->isFile() ) {
+                $file_paths[] = $file->getRealPath();
+            }
+        }
+
+        $file_count = count( $file_paths );
+
+        if ( $file_count === 0 ) {
+            $this->logger->add_log( 'Netlify: 出力するファイルが見つかりませんでした', true );
+            return;
+        }
+
+        $this->logger->add_log( '合計 ' . $file_count . ' ファイルをNetlifyにデプロイします' );
+
+        // Phase 1: デプロイ作成
+        $file_digests = array();
+        foreach ( $file_paths as $file_path ) {
+            $relative_path = str_replace( trailingslashit( $real_dir ), '', $file_path );
+            $file_digests[ $relative_path ] = sha1_file( $file_path );
+        }
+
+        // トークン確認
+        $token = isset( $this->settings['netlify_api_token'] ) ? $this->settings['netlify_api_token'] : '';
+        if ( empty( $token ) ) {
+            $this->logger->add_log( 'Netlify: APIトークンが設定されていません', true );
+            return;
+        }
+
+        $deploy_response = wp_remote_post(
+            'https://api.netlify.com/api/v1/sites/' . $this->settings['netlify_site_id'] . '/deploys',
+            array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $this->settings['netlify_api_token'],
+                    'Content-Type'  => 'application/json',
+                ),
+                'body' => wp_json_encode( array( 'files' => $file_digests ) ),
+                'timeout' => 60,
+            )
+        );
+
+        if ( is_wp_error( $deploy_response ) ) {
+            $this->logger->add_log( 'Netlify: デプロイ作成に失敗しました - ' . $deploy_response->get_error_message(), true );
+            return;
+        }
+
+        $status_code = wp_remote_retrieve_response_code( $deploy_response );
+
+        if ( $status_code !== 200 && $status_code !== 201 ) {
+            $this->logger->add_log( 'Netlify: デプロイ作成失敗 - HTTP ' . $status_code, true );
+            return;
+        }
+
+        $deploy_data = json_decode( wp_remote_retrieve_body( $deploy_response ), true );
+        if ( empty( $deploy_data['id'] ) ) {
+            $this->logger->add_log( 'Netlify: デプロイIDの取得に失敗しました', true );
+            return;
+        }
+
+        $deploy_id = $deploy_data['id'];
+        $required_files = isset( $deploy_data['required'] ) ? $deploy_data['required'] : array();
+
+        $this->logger->add_log( 'Netlifyデプロイ作成完了: ' . $deploy_id );
+        $this->logger->add_log( 'アップロード必要ファイル数: ' . count( $required_files ) );
+
+        // Phase 2: ファイルアップロード（進捗更新付き）
+        $uploaded = 0;
+        $total_required = count( $required_files );
+
+        foreach ( $file_paths as $file_path ) {
+            $relative_path = str_replace( trailingslashit( $real_dir ), '', $file_path );
+            $file_hash = sha1_file( $file_path );
+
+            // 既にアップロード済みのファイルはスキップ
+            if ( ! in_array( $file_hash, $required_files, true ) ) {
+                continue;
+            }
+
+            $file_content = file_get_contents( $file_path );
+
+            $upload_response = wp_remote_request(
+                'https://api.netlify.com/api/v1/deploys/' . $deploy_id . '/files/' . $relative_path,
+                array(
+                    'method'  => 'PUT',
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . $this->settings['netlify_api_token'],
+                        'Content-Type'  => 'application/octet-stream',
+                    ),
+                    'body' => $file_content,
+                    'timeout' => 120,
+                )
+            );
+
+            if ( is_wp_error( $upload_response ) ) {
+                // デバッグモード時のみ詳細エラーをPHPエラーログに記録
+                if ( $this->debug_mode ) {
+                    error_log( 'Netlify file upload error (' . $relative_path . '): ' . $upload_response->get_error_message() );
+                }
+                $this->logger->add_log( 'Netlify: ' . $relative_path . ' のアップロードに失敗しました', true );
+                continue;
+            }
+
+            $upload_status = wp_remote_retrieve_response_code( $upload_response );
+            if ( $upload_status !== 200 ) {
+                $this->logger->add_log( 'Netlify: ' . $relative_path . ' アップロード失敗 - HTTP ' . $upload_status, true );
+                continue;
+            }
+
+            $uploaded++;
+
+            // 進捗更新（10ファイルごと、または最終ファイル）
+            if ( $uploaded % 10 === 0 || $uploaded === $total_required ) {
+                $this->logger->add_log( sprintf( 'Netlify: %d / %d ファイルアップロード済み', $uploaded, $total_required ) );
+            }
+        }
+
+        $this->logger->add_log( 'Netlify出力完了: ' . $this->settings['netlify_site_id'] );
     }
 
     /**

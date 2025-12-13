@@ -46,16 +46,24 @@ class SGE_Admin {
         add_action( 'wp_ajax_sge_download_log', array( $this, 'ajax_download_log' ) );
         add_action( 'wp_ajax_sge_cancel_generation', array( $this, 'ajax_cancel_generation' ) );
         add_action( 'wp_ajax_sge_reset_scheduler', array( $this, 'ajax_reset_scheduler' ) );
+        add_action( 'wp_ajax_sge_check_error_notification', array( $this, 'ajax_check_error_notification' ) );
     }
 
     /**
      * 管理メニューを追加
      */
     public function add_admin_menu() {
+        // エラー通知バッジ
+        $menu_title = 'Carry Pod';
+        $error_notification = get_option( 'sge_error_notification', false );
+        if ( $error_notification && ! empty( $error_notification['count'] ) ) {
+            $menu_title .= ' <span class="awaiting-mod">1</span>';
+        }
+
         // 実行権限があるユーザーにメインメニューを表示
         add_menu_page(
-            'Static Generation Engine',
-            'Static Generation Engine',
+            'Carry Pod',
+            $menu_title,
             'sge_execute',
             'static-generation-engine',
             array( $this, 'render_execute_page' ),
@@ -87,12 +95,16 @@ class SGE_Admin {
      * スクリプトとスタイルを読み込み
      */
     public function enqueue_scripts( $hook ) {
-        if ( $hook !== 'toplevel_page_static-generation-engine' && $hook !== 'static-generation-engine_page_static-generation-engine-settings' ) {
+        // 実行ページまたは設定ページでのみ読み込む
+        // 設定ページのフック名は環境によって変動するため、両方に対応
+        if ( $hook !== 'toplevel_page_static-generation-engine'
+             && $hook !== 'carry-pod_page_static-generation-engine-settings'
+             && $hook !== 'carry-pod-1_page_static-generation-engine-settings' ) {
             return;
         }
 
-        wp_enqueue_style( 'sge-admin-css', SGE_PLUGIN_URL . 'assets/css/admin.css', array(), SGE_VERSION );
-        wp_enqueue_script( 'sge-admin-js', SGE_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), SGE_VERSION, true );
+        wp_enqueue_style( 'sge-admin-css', SGE_PLUGIN_URL . 'assets/css/admin.css', array(), SGE_VERSION . '.' . filemtime( SGE_PLUGIN_DIR . 'assets/css/admin.css' ) );
+        wp_enqueue_script( 'sge-admin-js', SGE_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), SGE_VERSION . '.' . filemtime( SGE_PLUGIN_DIR . 'assets/js/admin.js' ), true );
 
         // ユーザーのカラースキームを取得
         $admin_color = get_user_option( 'admin_color' );
@@ -190,6 +202,17 @@ class SGE_Admin {
         <div class="wrap sge-admin-wrap">
             <h1>静的化の実行</h1>
 
+            <?php
+            // エラー通知を表示
+            $error_notification = get_option( 'sge_error_notification', false );
+            if ( $error_notification && ! empty( $error_notification['count'] ) ) {
+                $count = intval( $error_notification['count'] );
+                echo '<div class="notice notice-error is-dismissible sge-error-notification">';
+                echo '<p><strong>静的化中に' . $count . '件エラーが発生しました。最新のログをダウンロードして確認してください。</strong></p>';
+                echo '</div>';
+            }
+            ?>
+
             <?php if ( $is_debug_mode ) : ?>
             <div class="notice notice-warning">
                 <p><strong>デバッグモード</strong> - 詳細なログが出力されます。無効にするには <code>&debugmode=off</code> を追加してください。</p>
@@ -243,7 +266,7 @@ class SGE_Admin {
             </div>
 
             <div class="sge-version-info">
-                Static Generation Engine <a href="https://github.com/villyoshioka/StaticGenerationEngine/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
+                Carry Pod <a href="https://github.com/villyoshioka/CarryPod/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
             </div>
         </div>
         <?php
@@ -395,7 +418,38 @@ class SGE_Admin {
 
                     </div>
 
-                    <!-- 2. GitHub -->
+                    <!-- 2. Netlify -->
+                    <div class="sge-form-group">
+                        <label>
+                            <input type="checkbox" id="sge-netlify-enabled" name="netlify_enabled" value="1" <?php checked( ! empty( $settings['netlify_enabled'] ) ); ?>>
+                            Netlifyに出力
+                        </label>
+                    </div>
+
+                    <div id="sge-netlify-settings" class="sge-subsection" <?php echo empty( $settings['netlify_enabled'] ) ? 'style="display:none;"' : ''; ?>>
+                        <div class="sge-form-group">
+                            <label for="sge-netlify-api-token">Netlify Personal Access Token <span class="required">*</span></label>
+                            <?php
+                            $has_netlify_token = ! empty( $settings['netlify_api_token'] );
+                            $netlify_placeholder = $has_netlify_token ? '設定済み（変更する場合は新しいトークンを入力）' : 'APIトークンを入力してください';
+                            ?>
+                            <input type="password" id="sge-netlify-api-token" name="netlify_api_token" class="regular-text" value="" placeholder="<?php echo esc_attr( $netlify_placeholder ); ?>">
+                            <?php if ( $has_netlify_token ) : ?>
+                                <span class="sge-token-status sge-token-set">✓ トークン設定済み</span>
+                            <?php endif; ?>
+                            <p class="description">
+                                <a href="https://app.netlify.com/user/applications#personal-access-tokens" target="_blank" rel="noopener noreferrer">Personal Access Tokenを作成</a>
+                            </p>
+                        </div>
+
+                        <div class="sge-form-group">
+                            <label for="sge-netlify-site-id">Netlify Site ID <span class="required">*</span></label>
+                            <input type="text" id="sge-netlify-site-id" name="netlify_site_id" class="regular-text" value="<?php echo esc_attr( $settings['netlify_site_id'] ?? '' ); ?>" placeholder="例: 12345678-1234-1234-1234-123456789012">
+                            <p class="description">Site settings → General → Site details → Site information から確認できます</p>
+                        </div>
+                    </div>
+
+                    <!-- 3. GitHub -->
                     <div class="sge-form-group">
                         <label>
                             <input type="checkbox" id="sge-github-enabled" name="github_enabled" value="1" <?php checked( ! empty( $settings['github_enabled'] ) ); ?>>
@@ -711,7 +765,7 @@ class SGE_Admin {
                 </form>
 
                 <div class="sge-version-info">
-                    Static Generation Engine <a href="https://github.com/villyoshioka/StaticGenerationEngine/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
+                    Carry Pod <a href="https://github.com/villyoshioka/CarryPod/releases/tag/v<?php echo esc_attr( SGE_VERSION ); ?>" target="_blank" rel="noopener noreferrer">v<?php echo esc_html( SGE_VERSION ); ?></a>
                 </div>
             </div>
         </div>
@@ -889,6 +943,9 @@ class SGE_Admin {
         // ログをクリア
         update_option( 'sge_logs', array() );
 
+        // エラー通知をクリア
+        delete_option( 'sge_error_notification' );
+
         wp_send_json_success( array( 'message' => 'ログをクリアしました。' ) );
     }
 
@@ -931,6 +988,7 @@ class SGE_Admin {
             'enable_rss' => 'boolean',
             'cloudflare_enabled' => 'boolean',
             'gitlab_enabled' => 'boolean',
+            'netlify_enabled' => 'boolean',
             // Text fields
             'github_token' => 'text',
             'github_repo' => 'text',
@@ -954,6 +1012,8 @@ class SGE_Admin {
             'gitlab_new_branch' => 'text',
             'gitlab_base_branch' => 'text',
             'gitlab_api_url' => 'text',
+            'netlify_api_token' => 'text',
+            'netlify_site_id' => 'text',
             // Textarea fields
             'include_paths' => 'textarea',
             'exclude_patterns' => 'textarea',
@@ -1128,7 +1188,7 @@ class SGE_Admin {
 
             // ログをテキスト形式に変換
             $log_text = "=====================================\n";
-            $log_text .= "Static Generation Engine - 生成ログ\n";
+            $log_text .= "Carry Pod - 生成ログ\n";
             $log_text .= "=====================================\n\n";
 
             // 基本情報
@@ -1179,6 +1239,10 @@ class SGE_Admin {
             $log_text .= "  - Cloudflare Workers出力: " . ( ! empty( $settings['cloudflare_enabled'] ) ? '有効' : '無効' ) . "\n";
             if ( ! empty( $settings['cloudflare_enabled'] ) ) {
                 $log_text .= "    - Worker名: " . ( $settings['cloudflare_script_name'] ?? 'なし' ) . "\n";
+            }
+            $log_text .= "  - Netlify出力: " . ( ! empty( $settings['netlify_enabled'] ) ? '有効' : '無効' ) . "\n";
+            if ( ! empty( $settings['netlify_enabled'] ) ) {
+                $log_text .= "    - Site ID: " . ( $settings['netlify_site_id'] ?? 'なし' ) . "\n";
             }
             $log_text .= "  - ZIP出力: " . ( ! empty( $settings['zip_enabled'] ) ? '有効' : '無効' ) . "\n";
             $log_text .= "\n";
@@ -1236,8 +1300,11 @@ class SGE_Admin {
             $log_text .= "\n";
 
             $log_text .= "=====================================\n";
-            $log_text .= "Generated with Static Generation Engine\n";
+            $log_text .= "Generated with Carry Pod\n";
             $log_text .= "=====================================\n";
+
+            // エラー通知をクリア
+            delete_option( 'sge_error_notification' );
 
             wp_send_json_success( array(
                 'log' => $log_text,
@@ -1370,6 +1437,19 @@ class SGE_Admin {
         } catch ( Exception $e ) {
             wp_send_json_error( array( 'message' => 'エラーが発生しました: ' . $e->getMessage() ) );
         }
+    }
+
+    /**
+     * Ajax: エラー通知チェック
+     */
+    public function ajax_check_error_notification() {
+        $error_notification = get_option( 'sge_error_notification', false );
+        $has_error = $error_notification && ! empty( $error_notification['count'] );
+
+        wp_send_json_success( array(
+            'has_error' => $has_error,
+            'count' => $has_error ? intval( $error_notification['count'] ) : 0,
+        ) );
     }
 
     /**

@@ -20,7 +20,7 @@ class SGE_Updater {
     /**
      * GitHub リポジトリ名
      */
-    private $github_repo = 'StaticGenerationEngine';
+    private $github_repo = 'CarryPod';
 
     /**
      * プラグインのベースネーム
@@ -181,12 +181,12 @@ class SGE_Updater {
         $download_url = $this->get_download_url( $release );
 
         return (object) array(
-            'name'              => 'Static Generation Engine',
+            'name'              => 'Carry Pod',
             'slug'              => $this->plugin_slug,
             'version'           => $latest_version,
             'author'            => '<a href="https://github.com/villyoshioka">villyoshioka</a>',
             'author_profile'    => 'https://github.com/villyoshioka',
-            'homepage'          => 'https://github.com/villyoshioka/StaticGenerationEngine',
+            'homepage'          => 'https://github.com/villyoshioka/CarryPod',
             'short_description' => 'WordPress サイトを静的 HTML に変換するプラグイン',
             'sections'          => array(
                 'description'  => $this->get_readme_description(),
@@ -475,7 +475,7 @@ class SGE_Updater {
      * @return string 説明文
      */
     private function get_readme_description() {
-        return 'Static Generation Engine は WordPress サイトを静的 HTML ファイルに変換するプラグインです。' .
+        return 'Carry Pod は WordPress サイトを静的 HTML ファイルに変換するプラグインです。' .
                'GitHub、GitLab、Cloudflare Workers、ローカルディレクトリなど複数の出力先に対応しています。';
     }
 

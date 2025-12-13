@@ -1,11 +1,11 @@
-# Static Generation Engine
+# Carry Pod
 
 **WordPress サイトを静的サイトに変換するプラグイン。**
 
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/Version-1.3.4-green.svg)](https://github.com/villyoshioka/StaticGenerationEngine/releases)
+[![Version](https://img.shields.io/badge/Version-1.4.0-green.svg)](https://github.com/villyoshioka/CarryPod/releases)
 
 > **注意**: **このプラグインについて、コードは公開していますが、サポートは行っていません。使用は自己責任でお願いします。**
 
@@ -29,6 +29,7 @@ WordPress で作ったサイトを、静的な HTML や CSS などのファイ�
 - **GitHub**: GitHub API で直接プッシュ
 - **GitLab**: GitLab API で直接プッシュ
 - **Cloudflare Workers**: Cloudflare Workers にデプロイ
+- **Netlify**: Netlify にデプロイ
 - **ローカル Git**: Git リポジトリとして出力
 - **ZIP ファイル**: ZIP ファイルとして出力
 - **ローカルディレクトリ**: 指定したフォルダに出力
@@ -37,7 +38,7 @@ WordPress で作ったサイトを、静的な HTML や CSS などのファイ�
 
 ## インストール
 
-1. [Releases](https://github.com/villyoshioka/StaticGenerationEngine/releases) から ZIP ファイルをダウンロード
+1. [Releases](https://github.com/villyoshioka/CarryPod/releases) から ZIP ファイルをダウンロード
 2. WordPress の管理画面で「プラグイン」→「新規追加」→「プラグインのアップロード」
 3. ダウンロードした ZIP ファイルを選択してインストール
 4. 「有効化」をクリック
@@ -47,7 +48,7 @@ WordPress で作ったサイトを、静的な HTML や CSS などのファイ�
 v1.2.0 以前のバージョンからは自動更新が正しく動作しない場合があります。その場合は以下の手順で手動アップグレードしてください：
 
 1. 既存のプラグインを無効化（削除は不要）
-2. [Releases](https://github.com/villyoshioka/StaticGenerationEngine/releases) から最新の ZIP ファイルをダウンロード
+2. [Releases](https://github.com/villyoshioka/CarryPod/releases) から最新の ZIP ファイルをダウンロード
 3. 「プラグイン」→「新規追加」→「プラグインのアップロード」で ZIP をアップロード
 4. 「今すぐインストール」→「既存のプラグインと置き換える」を選択
 5. 「有効化」をクリック
@@ -58,11 +59,11 @@ v1.3.1 以降は自動更新が正常に動作します。
 
 ## 使い方
 
-プラグインを有効化すると、WordPress 管理画面に「Static Generation Engine」メニューが追加されます。
+プラグインを有効化すると、WordPress 管理画面に「Carry Pod」メニューが追加されます。
 
-1. **設定画面**で出力先を選択します。（GitHub / GitLab / Cloudflare Workers / ローカル Git / ZIP / ディレクトリ）
+1. **設定画面**で出力先を選択します。（GitHub / GitLab / Cloudflare Workers / Netlify / ローカル Git / ZIP / ディレクトリ）
 2. **実行画面**で「静的化を実行」ボタンをクリックします。
-3. 進捗を確認しながら完了を待ちます。結構時間がかかる場合がありますので、その間に金つばでもどうぞ。
+3. 進捗を確認しながら完了を待ちます。結構時間がかかる場合がありますので、その間に水羊羹でもどうぞ。
 
 ### デバッグモード
 

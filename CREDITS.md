@@ -1,6 +1,6 @@
 # クレジット
 
-Static Generation Engine の開発にあたり、以下のオープンソースプロジェクトを使用しています。
+Carry Pod の開発にあたり、以下のオープンソースプロジェクトを使用しています。
 
 ---
 
@@ -38,4 +38,4 @@ Static Generation Engine の開発にあたり、以下のオープンソース�
 
 ## ライセンス
 
-Static Generation Engine は GPLv3 で公開されています。詳細は [LICENSE](LICENSE) をご覧ください。
+Carry Pod は GPLv3 で公開されています。詳細は [LICENSE](LICENSE) をご覧ください。

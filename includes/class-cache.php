@@ -38,7 +38,7 @@ class SGE_Cache {
      */
     private function ensure_cache_dir() {
         if ( ! is_dir( $this->cache_dir ) ) {
-            mkdir( $this->cache_dir, 0750, true );
+            mkdir( $this->cache_dir, 0700, true );
 
             // .htaccessを作成してディレクトリリスティングを防ぐ
             $htaccess_file = $this->cache_dir . '/.htaccess';

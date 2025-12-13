@@ -1,4 +1,4 @@
-/* Static Generation Engine 管理画面スタイル */
+/* Carry Pod 管理画面スタイル */
 
 .sge-admin-wrap {
     max-width: 1200px;
@@ -56,6 +56,12 @@
     padding: 8px 10px;
     font-size: 14px;
     line-height: 1.4;
+}
+
+/* large-textクラスのテキストエリアは幅を広く */
+.sge-form-group textarea.large-text {
+    max-width: 100%;
+    width: 100%;
 }
 
 .sge-form-group input.regular-text {
@@ -1409,4 +1415,26 @@ input[type="text"].regular-text {
         padding: 0 16px !important;
         font-size: 14px !important;
     }
+}
+
+/* エラー通知バッジ（WordPressデフォルトスタイル） */
+#adminmenu #toplevel_page_static-generation-engine .awaiting-mod {
+    display: inline-block;
+    vertical-align: top;
+    box-sizing: border-box;
+    margin: 1px 0 -1px 2px;
+    padding: 0 5px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: #d63638;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+    z-index: 26;
+}
+
+.sge-error-notification {
+    border-left-color: #d63638 !important;
 }

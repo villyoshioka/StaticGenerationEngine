@@ -190,6 +190,12 @@ class SGE_Settings {
             $settings['gitlab_token'] = is_wp_error( $decrypted ) ? '' : $decrypted;
         }
 
+        // Netlifyトークンを復号化
+        if ( ! empty( $settings['netlify_api_token'] ) ) {
+            $decrypted = $this->decrypt_token( $settings['netlify_api_token'] );
+            $settings['netlify_api_token'] = is_wp_error( $decrypted ) ? '' : $decrypted;
+        }
+
         return $settings;
     }
 
@@ -227,6 +233,14 @@ class SGE_Settings {
             $settings['_has_existing_gl_token'] = ! is_wp_error( $decrypted );
         }
 
+        // Netlifyトークンが空の場合、既存のトークンを保持
+        if ( empty( $settings['netlify_api_token'] ) && ! empty( $current_raw['netlify_api_token'] ) ) {
+            $settings['netlify_api_token'] = $current_raw['netlify_api_token'];
+            // バリデーション用に復号化した値を一時的に設定
+            $decrypted = $this->decrypt_token( $current_raw['netlify_api_token'] );
+            $settings['_has_existing_netlify_token'] = ! is_wp_error( $decrypted );
+        }
+
         // バリデーション
         $validation = $this->validate_settings( $settings );
         if ( is_wp_error( $validation ) ) {
@@ -237,6 +251,7 @@ class SGE_Settings {
         unset( $settings['_has_existing_token'] );
         unset( $settings['_has_existing_cf_token'] );
         unset( $settings['_has_existing_gl_token'] );
+        unset( $settings['_has_existing_netlify_token'] );
 
         // GitHubトークン: 新しいトークンが入力された場合のみ暗号化
         if ( ! empty( $settings['github_token'] ) && strpos( $settings['github_token'], 'v2:' ) !== 0 && strpos( $settings['github_token'], '::' ) === false ) {
@@ -256,6 +271,12 @@ class SGE_Settings {
             $settings['gitlab_token'] = $this->encrypt_token( $settings['gitlab_token'] );
         }
 
+        // Netlifyトークン: 新しいトークンが入力された場合のみ暗号化
+        if ( ! empty( $settings['netlify_api_token'] ) && strpos( $settings['netlify_api_token'], 'v2:' ) !== 0 && strpos( $settings['netlify_api_token'], '::' ) === false ) {
+            // 暗号化されていない新しいトークン
+            $settings['netlify_api_token'] = $this->encrypt_token( $settings['netlify_api_token'] );
+        }
+
         // バージョン情報を追加
         $settings['version'] = SGE_VERSION;
 
@@ -273,7 +294,7 @@ class SGE_Settings {
      */
     public function validate_settings( $settings ) {
         // 出力先が最低1つ選択されているかチェック
-        if ( empty( $settings['github_enabled'] ) && empty( $settings['git_local_enabled'] ) && empty( $settings['local_enabled'] ) && empty( $settings['zip_enabled'] ) && empty( $settings['cloudflare_enabled'] ) && empty( $settings['gitlab_enabled'] ) ) {
+        if ( empty( $settings['github_enabled'] ) && empty( $settings['git_local_enabled'] ) && empty( $settings['local_enabled'] ) && empty( $settings['zip_enabled'] ) && empty( $settings['cloudflare_enabled'] ) && empty( $settings['gitlab_enabled'] ) && empty( $settings['netlify_enabled'] ) ) {
             return new WP_Error( 'no_output', '出力先を最低1つ選択してください。' );
         }
 
@@ -448,6 +469,30 @@ class SGE_Settings {
             // Worker名の形式チェック（英数字、ハイフン、アンダースコアのみ）
             if ( ! preg_match( '/^[a-z0-9][a-z0-9_-]{0,62}$/', $settings['cloudflare_script_name'] ) ) {
                 return new WP_Error( 'invalid_cloudflare_script_name', 'Worker名は英小文字・数字で始まり、英小文字・数字・ハイフン・アンダースコアのみ使用できます（最大63文字）' );
+            }
+        }
+
+        // Netlify出力が有効な場合
+        if ( ! empty( $settings['netlify_enabled'] ) ) {
+            // APIトークン必須
+            $has_netlify_token = ! empty( $settings['netlify_api_token'] )
+                              || ! empty( $settings['_has_existing_netlify_token'] );
+            if ( ! $has_netlify_token ) {
+                return new WP_Error( 'netlify_token_required',
+                    'Netlify APIトークンを入力してください。' );
+            }
+
+            // Site ID必須・UUID形式チェック
+            if ( empty( $settings['netlify_site_id'] ) ) {
+                return new WP_Error( 'netlify_site_id_required',
+                    'Netlify Site IDを入力してください。' );
+            }
+
+            // UUIDフォーマット（8-4-4-4-12）
+            if ( ! preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i',
+                               $settings['netlify_site_id'] ) ) {
+                return new WP_Error( 'invalid_netlify_site_id',
+                    'Netlify Site IDの形式が正しくありません（UUID形式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）' );
             }
         }
 

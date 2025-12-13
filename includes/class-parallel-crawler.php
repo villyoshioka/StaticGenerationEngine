@@ -22,7 +22,7 @@ class SGE_Parallel_Crawler {
     /**
      * ユーザーエージェント
      */
-    private $user_agent = 'Static Generation Engine/1.0';
+    private $user_agent = 'Carry Pod/1.0';
 
     /**
      * ロガーインスタンス
@@ -65,8 +65,18 @@ class SGE_Parallel_Crawler {
                 curl_setopt( $ch, CURLOPT_MAXREDIRS, 3 );
                 curl_setopt( $ch, CURLOPT_TIMEOUT, $this->timeout );
                 curl_setopt( $ch, CURLOPT_USERAGENT, $this->user_agent );
-                curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
-                curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, false );
+
+                // ローカルホスト判定
+                $parsed_url = parse_url( $url );
+                $is_localhost = in_array(
+                    $parsed_url['host'] ?? '',
+                    array( 'localhost', '127.0.0.1', '::1' ),
+                    true
+                );
+
+                // ローカルホスト以外ではSSL検証を有効化
+                curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, ! $is_localhost );
+                curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, $is_localhost ? 0 : 2 );
 
                 // Basic認証が設定されている場合
                 $auth_user = get_option( 'sge_basic_auth_user' );

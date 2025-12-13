@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: Static Generation Engine
- * Version: 1.3.4
- * Description: WordPressサイトを静的化して出力するプラグイン
+ * Plugin Name: Carry Pod
+ * Version: 1.4.0
+ * Description: WordPressサイトを静的化してデプロイするプラグイン
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Vill Yoshioka
  * License: GPLv3
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
- * Text Domain: static-generation-engine
+ * Text Domain: carry-pod
  */
 
 // 直接アクセスを防止
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // プラグインの定数を定義
-define( 'SGE_VERSION', '1.3.4' );
+define( 'SGE_VERSION', '1.4.0' );
 define( 'SGE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SGE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'SGE_PLUGIN_FILE', __FILE__ );
@@ -30,7 +30,7 @@ if ( file_exists( SGE_PLUGIN_DIR . 'lib/action-scheduler/action-scheduler.php' )
 /**
  * メインプラグインクラス
  */
-class Static_Generation_Engine {
+class Carry_Pod {
 
     /**
      * シングルトンインスタンス
@@ -53,6 +53,7 @@ class Static_Generation_Engine {
     private function __construct() {
         $this->load_dependencies();
         $this->init_hooks();
+        add_action( 'plugins_loaded', array( $this, 'on_plugin_loaded' ) );
     }
 
     /**
@@ -70,6 +71,7 @@ class Static_Generation_Engine {
         require_once SGE_PLUGIN_DIR . 'includes/class-asset-detector.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-generator.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-cloudflare-workers.php';
+        require_once SGE_PLUGIN_DIR . 'includes/class-netlify-api.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-admin.php';
         require_once SGE_PLUGIN_DIR . 'includes/class-updater.php';
     }
@@ -95,6 +97,15 @@ class Static_Generation_Engine {
         // 自動更新を初期化
         new SGE_Updater();
 
+        // Action Schedulerが初期化された後にフック登録
+        add_action( 'action_scheduler_init', array( $this, 'init_action_scheduler_hooks' ) );
+    }
+
+    /**
+     * Action Scheduler関連のフックを初期化
+     * Action Schedulerが完全に初期化された後に呼ばれる
+     */
+    public function init_action_scheduler_hooks() {
         // 自動静的化フック
         add_action( 'transition_post_status', array( $this, 'auto_generate_on_post_change' ), 10, 3 );
 
@@ -340,12 +351,30 @@ class Static_Generation_Engine {
     public function extend_action_scheduler_timeout_period( $time_limit ) {
         return 3600; // 1時間
     }
+
+    /**
+     * プラグイン更新時の処理
+     */
+    public function on_plugin_loaded() {
+        $current_version = get_option( 'sge_version', '0.0.0' );
+
+        if ( version_compare( $current_version, '1.4.0', '<' ) ) {
+            // 1.4.0へのアップグレード処理
+            $this->upgrade_to_1_4_0();
+            update_option( 'sge_version', '1.4.0' );
+        }
+    }
+
+    /**
+     * 1.4.0へのアップグレード
+     */
+    private function upgrade_to_1_4_0() {
+        // 古いエラー通知をクリア
+        delete_option( 'sge_error_notification' );
+
+        // 必要に応じて他の初期化処理
+    }
 }
 
-// プラグインを初期化
-function sge_init() {
-    return Static_Generation_Engine::get_instance();
-}
-
-// プラグインを起動
-add_action( 'plugins_loaded', 'sge_init' );
+// プラグインを初期化（Action Scheduler読み込み直後に実行）
+Carry_Pod::get_instance();

@@ -1,5 +1,5 @@
 /**
- * Static Generation Engine 管理画面JavaScript
+ * Carry Pod 管理画面JavaScript
  */
 
 jQuery(document).ready(function($) {
@@ -150,6 +150,16 @@ jQuery(document).ready(function($) {
             $('#sge-gitlab-settings').slideDown();
         } else {
             $('#sge-gitlab-settings').slideUp();
+        }
+        updateExecuteButton();
+    });
+
+    // Netlify出力チェックボックスの連動
+    $('#sge-netlify-enabled').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#sge-netlify-settings').slideDown();
+        } else {
+            $('#sge-netlify-settings').slideUp();
         }
         updateExecuteButton();
     });
@@ -462,7 +472,25 @@ jQuery(document).ready(function($) {
 
                         // 完了時は100%に設定
                         if (progress.percentage === 100 && progress.current === progress.total && progress.total > 0) {
-                            $('#sge-progress-status').text('完了しました！');
+                            // エラー通知があるか確認
+                            $.ajax({
+                                url: sgeData.ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'sge_check_error_notification',
+                                    nonce: sgeData.nonce
+                                },
+                                success: function(response) {
+                                    if (response.success && response.data.has_error) {
+                                        $('#sge-progress-status')
+                                            .text('エラーが発生しました')
+                                            .css('color', '#d63638');
+                                        $('#sge-progress-bar').css('background-color', '#d63638');
+                                    } else {
+                                        $('#sge-progress-status').text('完了しました！');
+                                    }
+                                }
+                            });
                         } else {
                             $('#sge-progress-status').text('待機中...');
                         }
